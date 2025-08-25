@@ -75,12 +75,25 @@ const configNameInput = document.getElementById('configName');
 const saveConfigBtn = document.getElementById('saveConfigBtn');
 const cancelConfigBtn = document.getElementById('cancelConfigBtn');
 
+// Theme toggle elements
+const themeToggle = document.getElementById('themeToggle');
+const themeIcon = themeToggle.querySelector('.theme-icon');
+
 // Store WebSocket connection
 let socket = null;
 
 // Configuration management state
 let currentConfigId = null;
 let configurations = {};
+
+// Theme management
+const THEME_STORAGE_KEY = 'llamaCppManagerTheme';
+const THEMES = {
+    LIGHT: 'light',
+    DARK: 'dark'
+};
+
+let currentTheme = THEMES.LIGHT;
 
 // Chart variables
 let cpuCtx, ramCtx, gpuCtx, vramCtx;
@@ -90,6 +103,33 @@ let chartData = {
     gpu: [],
     vram: []
 };
+
+// Theme management functions
+function loadTheme() {
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    currentTheme = savedTheme || THEMES.LIGHT;
+    applyTheme(currentTheme);
+}
+
+function applyTheme(theme) {
+    const body = document.body;
+    
+    if (theme === THEMES.DARK) {
+        body.setAttribute('data-theme', 'dark');
+        themeIcon.textContent = '☀️';
+    } else {
+        body.removeAttribute('data-theme');
+        themeIcon.textContent = '🌙';
+    }
+    
+    currentTheme = theme;
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+}
+
+function toggleTheme() {
+    const newTheme = currentTheme === THEMES.LIGHT ? THEMES.DARK : THEMES.LIGHT;
+    applyTheme(newTheme);
+}
 
 // Disable/enable buttons based on status
 function updateButtonStates(isRunning) {
@@ -972,6 +1012,9 @@ function analyzeModelAndRecommendSettings() {
 
 // Initialize the application
 async function init() {
+    // Load theme first
+    loadTheme();
+    
     // Load configurations
     loadConfigurations();
     
@@ -997,6 +1040,9 @@ async function init() {
     presetBalancedDualBtn.addEventListener('click', applyBalancedDualGPU);
     presetLargeModelBtn.addEventListener('click', applyLargeModelDualGPU);
     presetCpuOffloadBtn.addEventListener('click', applyCpuOffloadHybrid);
+    
+    // Set up theme toggle event listener
+    themeToggle.addEventListener('click', toggleTheme);
     
     // Set up tensor split change handler to show/hide warning
     tensorSplitInput.addEventListener('input', function() {

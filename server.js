@@ -5,7 +5,7 @@ const fs = require('fs').promises;
 const os = require('os');
 const osUtils = require('os-utils');
 const app = express();
-const PORT = 3001;
+const PORT = 7111;
 
 // Middleware
 app.use(express.static('public'));
