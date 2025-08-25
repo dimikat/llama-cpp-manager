@@ -95,6 +95,9 @@ const THEMES = {
 
 let currentTheme = THEMES.LIGHT;
 
+// Server path management
+const SERVER_PATH_KEY = 'llamaCppServerPath';
+
 // Chart variables
 let cpuCtx, ramCtx, gpuCtx, vramCtx;
 let chartData = {
@@ -208,6 +211,21 @@ function positionTooltipAbsolute(tooltip) {
     // Reset visibility
     tooltip.style.visibility = '';
     tooltip.style.opacity = '';
+}
+
+// Server path management functions
+function saveServerPath(path) {
+    if (path && path.trim()) {
+        localStorage.setItem(SERVER_PATH_KEY, path.trim());
+    }
+}
+
+function loadServerPath() {
+    return localStorage.getItem(SERVER_PATH_KEY) || '';
+}
+
+function clearServerPath() {
+    localStorage.removeItem(SERVER_PATH_KEY);
 }
 
 // Disable/enable buttons based on status
@@ -358,7 +376,7 @@ function saveCurrentValues(configId) {
     if (!configId) return;
     
     const config = {
-        serverPath: serverPathInput.value,
+        // Note: serverPath is now stored separately via saveServerPath()
         modelPath: modelPathSelect.value,  // Use select value instead of input value
         ngl: parseInt(nglInput.value) || 0,
         threads: parseInt(threadsInput.value) || 1,
@@ -419,7 +437,7 @@ function loadConfiguration(configId) {
     currentConfigId = configId;
     
     // Load values into form fields
-    if (config.serverPath) serverPathInput.value = config.serverPath;
+    // Note: serverPath is now loaded separately via loadServerPath()
     if (config.modelPath) modelPathSelect.value = config.modelPath;
     if (config.ngl !== undefined) nglInput.value = config.ngl;
     if (config.threads !== undefined) threadsInput.value = config.threads;
@@ -1094,6 +1112,12 @@ async function init() {
     // Load theme first
     loadTheme();
     
+    // Load server path independently
+    const savedServerPath = loadServerPath();
+    if (savedServerPath) {
+        serverPathInput.value = savedServerPath;
+    }
+    
     // Load configurations
     loadConfigurations();
     
@@ -1134,6 +1158,14 @@ async function init() {
     
     // Set up model change handler for automatic recommendations
     modelPathSelect.addEventListener('change', analyzeModelAndRecommendSettings);
+    
+    // Set up server path auto-save when changed
+    serverPathInput.addEventListener('input', function() {
+        saveServerPath(this.value);
+    });
+    serverPathInput.addEventListener('blur', function() {
+        saveServerPath(this.value);
+    });
     
     // Check initial status
     await fetchStatus();
