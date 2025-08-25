@@ -51,6 +51,15 @@ const presetBalancedDualBtn = document.getElementById('presetBalancedDual');
 const presetLargeModelBtn = document.getElementById('presetLargeModel');
 const presetCpuOffloadBtn = document.getElementById('presetCpuOffload');
 
+// Draft Model (Speculative Decoding) elements
+const draftModelEnableCheckbox = document.getElementById('draftModelEnable');
+const draftModelPathSelect = document.getElementById('draftModelPath');
+const draftGpuLayersInput = document.getElementById('draftGpuLayers');
+const draftContextSizeInput = document.getElementById('draftContextSize');
+const draftMaxTokensInput = document.getElementById('draftMaxTokens');
+const draftMinTokensInput = document.getElementById('draftMinTokens');
+const draftPMinInput = document.getElementById('draftPMin');
+
 const launchBtn = document.getElementById('launchBtn');
 const stopBtn = document.getElementById('stopBtn');
 const modelStatusMessage = document.getElementById('modelStatusMessage');
@@ -138,6 +147,9 @@ async function fetchModels() {
                 option.textContent = model.relativePath || model.name;  // Show relative path or just name
                 modelPathSelect.appendChild(option);
             });
+            
+            // Also populate draft models
+            populateDraftModels(data.models);
         } else {
             console.error('Failed to fetch models:', data.error);
             showOutput('Error fetching models: ' + data.error);
@@ -145,6 +157,51 @@ async function fetchModels() {
     } catch (error) {
         console.error('Error fetching models:', error);
         showOutput('Error fetching models: ' + error.message);
+    }
+}
+
+// Populate draft models dropdown with potential draft models
+function populateDraftModels(allModels) {
+    // Clear existing options except the placeholder
+    draftModelPathSelect.innerHTML = '<option value="">-- Select a Draft Model --</option>';
+    
+    // Filter models that could be draft models (typically smaller models)
+    const draftModels = allModels.filter(model => {
+        const name = model.name.toLowerCase();
+        const relativePath = (model.relativePath || '').toLowerCase();
+        
+        // Look for indicators of small/draft models
+        return name.includes('draft') || 
+               name.includes('1b') || 
+               name.includes('0.6b') || 
+               name.includes('small') ||
+               relativePath.includes('draft') ||
+               relativePath.includes('1b') ||
+               relativePath.includes('0.6b') ||
+               relativePath.includes('small');
+    });
+    
+    // Add draft models to dropdown
+    draftModels.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.path;
+        option.textContent = model.relativePath || model.name;
+        draftModelPathSelect.appendChild(option);
+    });
+    
+    // If no dedicated draft models found, add all smaller models (heuristic)
+    if (draftModels.length === 0) {
+        const smallerModels = allModels.filter(model => {
+            const name = model.name.toLowerCase();
+            return name.includes('1b') || name.includes('3b') || name.includes('7b');
+        });
+        
+        smallerModels.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.path;
+            option.textContent = `${model.relativePath || model.name} (potential draft)`;
+            draftModelPathSelect.appendChild(option);
+        });
     }
 }
 
@@ -220,7 +277,15 @@ function saveCurrentValues(configId) {
         serverPort: parseInt(serverPortInput.value) || 0,
         readTimeout: parseInt(readTimeoutInput.value) || 0,
         writeTimeout: parseInt(writeTimeoutInput.value) || 0,
-        apiKey: apiKeyInput.value
+        apiKey: apiKeyInput.value,
+        // Draft Model parameters
+        draftModelEnable: draftModelEnableCheckbox.checked,
+        draftModelPath: draftModelPathSelect.value,
+        draftGpuLayers: parseInt(draftGpuLayersInput.value) || 0,
+        draftContextSize: parseInt(draftContextSizeInput.value) || 0,
+        draftMaxTokens: parseInt(draftMaxTokensInput.value) || 0,
+        draftMinTokens: parseInt(draftMinTokensInput.value) || 0,
+        draftPMin: parseFloat(draftPMinInput.value) || 0
     };
     
     configurations[configId] = config;
@@ -278,6 +343,18 @@ function loadConfiguration(configId) {
     if (config.readTimeout !== undefined) readTimeoutInput.value = config.readTimeout;
     if (config.writeTimeout !== undefined) writeTimeoutInput.value = config.writeTimeout;
     if (config.apiKey !== undefined) apiKeyInput.value = config.apiKey;
+    
+    // Load Draft Model parameters
+    if (config.draftModelEnable !== undefined) draftModelEnableCheckbox.checked = config.draftModelEnable;
+    if (config.draftModelPath !== undefined) draftModelPathSelect.value = config.draftModelPath;
+    if (config.draftGpuLayers !== undefined) draftGpuLayersInput.value = config.draftGpuLayers;
+    if (config.draftContextSize !== undefined) draftContextSizeInput.value = config.draftContextSize;
+    if (config.draftMaxTokens !== undefined) draftMaxTokensInput.value = config.draftMaxTokens;
+    if (config.draftMinTokens !== undefined) draftMinTokensInput.value = config.draftMinTokens;
+    if (config.draftPMin !== undefined) draftPMinInput.value = config.draftPMin;
+    
+    // Update draft model enable state
+    updateDraftModelEnableState();
 }
 
 // Update enable/disable state for context token parameters
@@ -285,6 +362,17 @@ function updateContextTokenEnableState() {
     const isEnabled = ctkEnableCheckbox.checked;
     contextTokenKeySelect.disabled = !isEnabled;
     contextTokenValueSelect.disabled = !isEnabled;
+}
+
+// Update enable/disable state for draft model parameters
+function updateDraftModelEnableState() {
+    const isEnabled = draftModelEnableCheckbox.checked;
+    draftModelPathSelect.disabled = !isEnabled;
+    draftGpuLayersInput.disabled = !isEnabled;
+    draftContextSizeInput.disabled = !isEnabled;
+    draftMaxTokensInput.disabled = !isEnabled;
+    draftMinTokensInput.disabled = !isEnabled;
+    draftPMinInput.disabled = !isEnabled;
 }
 
 // Launch the server with all parameters
@@ -341,7 +429,15 @@ async function launchServer() {
         serverPort: parseInt(serverPortInput.value) || 0,
         readTimeout: parseInt(readTimeoutInput.value) || 0,
         writeTimeout: parseInt(writeTimeoutInput.value) || 0,
-        apiKey: apiKeyInput.value
+        apiKey: apiKeyInput.value,
+        // Draft Model parameters
+        draftModelEnable: draftModelEnableCheckbox.checked,
+        draftModelPath: draftModelPathSelect.value,
+        draftGpuLayers: parseInt(draftGpuLayersInput.value) || 0,
+        draftContextSize: parseInt(draftContextSizeInput.value) || 0,
+        draftMaxTokens: parseInt(draftMaxTokensInput.value) || 0,
+        draftMinTokens: parseInt(draftMinTokensInput.value) || 0,
+        draftPMin: parseFloat(draftPMinInput.value) || 0
     };
     
     // Save current values to localStorage (if we have a config ID)
@@ -490,6 +586,31 @@ async function launchServer() {
         
         if (config.apiKey && config.apiKey.trim()) {
             args.push('--api-key', config.apiKey.trim());
+        }
+        
+        // Add Draft Model parameters (Speculative Decoding)
+        if (config.draftModelEnable && config.draftModelPath && config.draftModelPath.trim()) {
+            args.push('--model-draft', config.draftModelPath.trim());
+            
+            if (config.draftGpuLayers > 0) {
+                args.push('--gpu-layers-draft', config.draftGpuLayers.toString());
+            }
+            
+            if (config.draftContextSize > 0 && config.draftContextSize !== parseInt(contextSizeInput.value)) {
+                args.push('--ctx-size-draft', config.draftContextSize.toString());
+            }
+            
+            if (config.draftMaxTokens > 0 && config.draftMaxTokens !== 16) {
+                args.push('--draft-max', config.draftMaxTokens.toString());
+            }
+            
+            if (config.draftMinTokens > 0 && config.draftMinTokens !== 5) {
+                args.push('--draft-min', config.draftMinTokens.toString());
+            }
+            
+            if (config.draftPMin > 0 && config.draftPMin !== 0.9) {
+                args.push('--draft-p-min', config.draftPMin.toString());
+            }
         }
         
         showOutput(`Command arguments: ${args.join(' ')}`);
@@ -752,6 +873,12 @@ function applyHighPerformanceSingleGPU() {
     contBatchingCheckbox.checked = true;
     noMmapCheckbox.checked = false;
     mlockCheckbox.checked = true;
+    // Enable draft model for maximum performance
+    draftModelEnableCheckbox.checked = true;
+    draftGpuLayersInput.value = '99';
+    draftMaxTokensInput.value = '16';
+    draftMinTokensInput.value = '5';
+    updateDraftModelEnableState();
     showMultiGpuWarning(false);
 }
 
@@ -764,6 +891,12 @@ function applyBalancedDualGPU() {
     fastAttentionCheckbox.checked = true;
     mainGpuSelect.value = '0';
     contBatchingCheckbox.checked = true;
+    // Enable draft model with balanced settings
+    draftModelEnableCheckbox.checked = true;
+    draftGpuLayersInput.value = '99';
+    draftMaxTokensInput.value = '12';
+    draftMinTokensInput.value = '4';
+    updateDraftModelEnableState();
     showMultiGpuWarning(true);
 }
 
@@ -851,6 +984,9 @@ async function init() {
     
     // Set up event listeners for context token parameters
     ctkEnableCheckbox.addEventListener('change', updateContextTokenEnableState);
+    
+    // Set up event listeners for draft model parameters
+    draftModelEnableCheckbox.addEventListener('change', updateDraftModelEnableState);
     
     // Set up event listeners for launching and stopping
     launchBtn.addEventListener('click', launchServer);

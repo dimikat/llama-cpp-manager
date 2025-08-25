@@ -548,6 +548,16 @@ body {
     font-size: 14px;
 }
 
+.info-banner {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
 .preset-buttons {
     display: grid;
     grid-template-columns: 1fr 1fr;
