@@ -72,13 +72,21 @@
                 <div class="input-section">
                     <h3>Server Configuration</h3>
                     <div class="form-group">
-                        <label for="serverPath">LLaMA Server Path:</label>
+                        <label for="serverPath">LLaMA Server Path:
+                            <span class="help-icon">
+                                <div class="tooltip">Path to your llama-server.exe or llama-server executable. This is the main llama.cpp server binary that will run your models.</div>
+                            </span>
+                        </label>
                         <input type="text" id="serverPath" class="form-control" placeholder="Enter path to llama-server.exe">
                     </div>
 
                     <h3>Model Configuration</h3>
                     <div class="form-group">
-                        <label for="modelPath">Model Path (-m):</label>
+                        <label for="modelPath">Model Path (-m):
+                            <span class="help-icon">
+                                <div class="tooltip">Select the GGUF model file to load. Models are automatically detected from your LM Studio models directory and subdirectories.</div>
+                            </span>
+                        </label>
                         <select id="modelPath" class="form-control">
                             <option value="">-- Select a Model --</option>
                         </select>
@@ -86,7 +94,11 @@
 
                     <h3>GPU Configuration</h3>
                     <div class="form-group">
-                        <label for="ngl">GPU Layers (-ngl):</label>
+                        <label for="ngl">GPU Layers (-ngl):
+                            <span class="help-icon">
+                                <div class="tooltip">Number of model layers to offload to GPU. Use 99 to offload all layers. Reduce if you run out of VRAM.</div>
+                            </span>
+                        </label>
                         <input type="number" id="ngl" class="form-control" min="0" value="99">
                     </div>
 
@@ -95,11 +107,19 @@
                         <strong>⚠️ Performance Note:</strong> Tensor splitting in llama.cpp may reduce performance. Consider vLLM or ExLlamaV2 for optimal multi-GPU utilization.
                     </div>
                     <div class="form-group">
-                        <label for="tensorSplit">Tensor Split (--tensor-split):</label>
+                        <label for="tensorSplit">Tensor Split (--tensor-split):
+                            <span class="help-icon">
+                                <div class="tooltip">Comma-separated ratios for GPU memory distribution. Example: 0.6,0.4 gives 60% to GPU 0, 40% to GPU 1. For dual 3090s, try 0.5,0.5 first.</div>
+                            </span>
+                        </label>
                         <input type="text" id="tensorSplit" class="form-control" placeholder="e.g., 0.5,0.5 for equal split">
                     </div>
                     <div class="form-group">
-                        <label for="mainGpu">Main GPU (--main-gpu):</label>
+                        <label for="mainGpu">Main GPU (--main-gpu):
+                            <span class="help-icon">
+                                <div class="tooltip">Primary GPU for processing when using multiple GPUs. Usually GPU 0. This GPU handles coordination and the first layers.</div>
+                            </span>
+                        </label>
                         <select id="mainGpu" class="form-control">
                             <option value="0">GPU 0</option>
                             <option value="1">GPU 1</option>
@@ -108,7 +128,11 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="splitMode">Split Mode (--split-mode):</label>
+                        <label for="splitMode">Split Mode (--split-mode):
+                            <span class="help-icon">
+                                <div class="tooltip">How to split model across GPUs. 'Layer' works best for most models. 'Row' for very large models that don't fit in layers.</div>
+                            </span>
+                        </label>
                         <select id="splitMode" class="form-control">
                             <option value="none">None (default)</option>
                             <option value="layer">Layer</option>
@@ -118,29 +142,53 @@
 
                     <h3>Performance Settings</h3>
                     <div class="form-group">
-                        <label for="threads">Threads (-t):</label>
+                        <label for="threads">Threads (-t):
+                            <span class="help-icon">
+                                <div class="tooltip">Number of CPU threads for processing. Usually set to your CPU core count. Too many threads can reduce performance.</div>
+                            </span>
+                        </label>
                         <input type="number" id="threads" class="form-control" min="1" value="12">
                     </div>
                     <div class="form-group">
-                        <label for="batchSize">Batch Size (--batch-size, -b):</label>
+                        <label for="batchSize">Batch Size (--batch-size, -b):
+                            <span class="help-icon">
+                                <div class="tooltip">Number of tokens processed simultaneously. Higher values (2048+) improve throughput but use more VRAM. Reduce if you get OOM errors.</div>
+                            </span>
+                        </label>
                         <input type="number" id="batchSize" class="form-control" min="1" value="2048">
                     </div>
                     <div class="form-group">
-                        <label for="ubatchSize">Micro Batch Size (--ubatch-size, -ub):</label>
+                        <label for="ubatchSize">Micro Batch Size (--ubatch-size, -ub):
+                            <span class="help-icon">
+                                <div class="tooltip">Size of batches processed internally. Usually 1/4 to 1/2 of batch size. Lower values use less VRAM but may be slower.</div>
+                            </span>
+                        </label>
                         <input type="number" id="ubatchSize" class="form-control" min="1" value="512">
                     </div>
                     <div class="inline-checkboxes">
                         <div class="form-group">
-                            <label for="contBatching">Continuous Batching (--cont-batching):</label>
+                            <label for="contBatching">Continuous Batching (--cont-batching):
+                                <span class="help-icon">
+                                    <div class="tooltip">Enables processing multiple requests simultaneously. Improves throughput for server workloads but uses more VRAM.</div>
+                                </span>
+                            </label>
                             <input type="checkbox" id="contBatching" class="form-control checkbox">
                         </div>
                         <div class="form-group">
-                            <label for="noMmap">No Memory Mapping (--no-mmap):</label>
+                            <label for="noMmap">No Memory Mapping (--no-mmap):
+                                <span class="help-icon">
+                                    <div class="tooltip">Disables memory mapping for model loading. Can help with some systems but uses more RAM. Try if you get loading errors.</div>
+                                </span>
+                            </label>
                             <input type="checkbox" id="noMmap" class="form-control checkbox">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="numa">NUMA Optimization (--numa):</label>
+                        <label for="numa">NUMA Optimization (--numa):
+                            <span class="help-icon">
+                                <div class="tooltip">Memory optimization for multi-socket systems. 'Distribute' spreads across NUMA nodes, 'Isolate' keeps to one node. Leave None for single-socket systems.</div>
+                            </span>
+                        </label>
                         <select id="numa" class="form-control">
                             <option value="">None</option>
                             <option value="distribute">Distribute</option>
@@ -151,37 +199,65 @@
 
                     <h3>Sampling Parameters</h3>
                     <div class="form-group">
-                        <label for="temp">Temperature (--temp):</label>
+                        <label for="temp">Temperature (--temp):
+                            <span class="help-icon">
+                                <div class="tooltip">Controls randomness in output. 0.1 = very focused, 0.7 = balanced, 1.2+ = very creative. Most models work best with 0.6-0.8.</div>
+                            </span>
+                        </label>
                         <input type="number" id="temp" class="form-control" step="0.01" min="0" value="0.7">
                     </div>
                     <div class="form-group">
-                        <label for="topK">Top-K (--top-k):</label>
+                        <label for="topK">Top-K (--top-k):
+                            <span class="help-icon">
+                                <div class="tooltip">Limits vocabulary to top K most probable tokens. 20-40 is typical. Higher values = more variety, lower = more focused.</div>
+                            </span>
+                        </label>
                         <input type="number" id="topK" class="form-control" min="0" value="20">
                     </div>
                     <div class="form-group">
-                        <label for="topP">Top-P (--top-p):</label>
+                        <label for="topP">Top-P (--top-p):
+                            <span class="help-icon">
+                                <div class="tooltip">Cumulative probability threshold. 0.9-0.95 typical. Alternative to Top-K. Set to 0.00 to disable nucleus sampling.</div>
+                            </span>
+                        </label>
                         <input type="number" id="topP" class="form-control" step="0.01" min="0" max="1" value="0.00">
                     </div>
                     <div class="form-group">
-                        <label for="repeatPenalty">Repeat Penalty (--repeat-penalty):</label>
+                        <label for="repeatPenalty">Repeat Penalty (--repeat-penalty):
+                            <span class="help-icon">
+                                <div class="tooltip">Penalizes repeated words/phrases. 1.0 = no penalty, 1.05-1.15 typical. Higher values reduce repetition but may affect coherence.</div>
+                            </span>
+                        </label>
                         <input type="number" id="repeatPenalty" class="form-control" step="0.01" min="0" value="1.05">
                     </div>
 
                     <h3>Memory Settings</h3>
                     <div class="inline-checkboxes">
                         <div class="form-group">
-                            <label for="mlock">Memory Lock (--mlock):</label>
+                            <label for="mlock">Memory Lock (--mlock):
+                                <span class="help-icon">
+                                    <div class="tooltip">Prevents model from being swapped to disk. Keeps model in RAM for consistent performance. Use if you have sufficient RAM.</div>
+                                </span>
+                            </label>
                             <input type="checkbox" id="mlock" class="form-control checkbox">
                         </div>
                         <div class="form-group">
-                            <label for="swaFull">SWA Full (--swa-full):</label>
+                            <label for="swaFull">SWA Full (--swa-full):
+                                <span class="help-icon">
+                                    <div class="tooltip">Sliding Window Attention optimization. Can improve performance for models with sliding window attention support.</div>
+                                </span>
+                            </label>
                             <input type="checkbox" id="swaFull" class="form-control checkbox">
                         </div>
                     </div>
 
                     <h3>Advanced Memory Management</h3>
                     <div class="form-group">
-                        <label for="cacheTypeK">Cache Type K (--cache-type-k):</label>
+                        <label for="cacheTypeK">Cache Type K (--cache-type-k):
+                            <span class="help-icon">
+                                <div class="tooltip">Quantization for key cache. f16 is default balance. q4_0/q8_0 save VRAM at cost of quality. f32 for maximum quality.</div>
+                            </span>
+                        </label>
                         <select id="cacheTypeK" class="form-control">
                             <option value="f32">f32</option>
                             <option value="f16" selected>f16 (default)</option>
@@ -195,7 +271,11 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="cacheTypeV">Cache Type V (--cache-type-v):</label>
+                        <label for="cacheTypeV">Cache Type V (--cache-type-v):
+                            <span class="help-icon">
+                                <div class="tooltip">Quantization for value cache. f16 is default balance. q4_0/q8_0 save VRAM at cost of quality. Usually matches cache-type-k setting.</div>
+                            </span>
+                        </label>
                         <select id="cacheTypeV" class="form-control">
                             <option value="f32">f32</option>
                             <option value="f16" selected>f16 (default)</option>
@@ -209,7 +289,11 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="keepModels">Keep Models (--keep):</label>
+                        <label for="keepModels">Keep Models (--keep):
+                            <span class="help-icon">
+                                <div class="tooltip">Number of models to keep loaded in memory. 0 = unload after use, 1+ = keep loaded for faster switching. Uses more VRAM.</div>
+                            </span>
+                        </label>
                         <input type="number" id="keepModels" class="form-control" min="0" value="0" placeholder="Number of models to keep in memory">
                     </div>
                     <div class="inline-checkboxes">
@@ -221,16 +305,28 @@
 
                     <h3>Advanced Settings</h3>
                     <div class="form-group">
-                        <label for="contextSize">Context Size (-c):</label>
+                        <label for="contextSize">Context Size (-c):
+                            <span class="help-icon">
+                                <div class="tooltip">Maximum tokens in conversation memory. 32K for most uses, 128K for large documents. Higher values use more VRAM.</div>
+                            </span>
+                        </label>
                         <input type="number" id="contextSize" class="form-control" min="1" value="16384">
                     </div>
                     <div class="form-group">
-                        <label for="nCpuMoe">CPU MoE Layers (--n-cpu-moe):</label>
+                        <label for="nCpuMoe">CPU MoE Layers (--n-cpu-moe):
+                            <span class="help-icon">
+                                <div class="tooltip">Number of Mixture of Experts layers to run on CPU. For MoE models like Mixtral. Reduces VRAM usage at the cost of speed.</div>
+                            </span>
+                        </label>
                         <input type="number" id="nCpuMoe" class="form-control" min="0" value="8">
                     </div>
                     <div class="inline-checkboxes">
                         <div class="form-group">
-                            <label for="cpuMoe">CPU MoE (--cpu-moe):</label>
+                            <label for="cpuMoe">CPU MoE (--cpu-moe):
+                                <span class="help-icon">
+                                    <div class="tooltip">Forces Mixture of Experts computation on CPU instead of GPU. Can help with VRAM constraints for MoE models like Mixtral.</div>
+                                </span>
+                            </label>
                             <input type="checkbox" id="cpuMoe" class="form-control checkbox">
                         </div>
                     </div>
@@ -239,12 +335,20 @@
                     <h3>Context Token Parameters</h3>
                     <div class="inline-checkboxes">
                         <div class="form-group">
-                            <label for="ctkEnable">Enable -ctk/-ctv:</label>
+                            <label for="ctkEnable">Enable -ctk/-ctv:
+                                <span class="help-icon">
+                                    <div class="tooltip">Enables custom quantization for context token key/value caches. Advanced feature for fine-tuning memory usage vs quality.</div>
+                                </span>
+                            </label>
                             <input type="checkbox" id="ctkEnable" class="form-control checkbox">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="contextTokenKey">Context Token Key (-ctk):</label>
+                        <label for="contextTokenKey">Context Token Key (-ctk):
+                            <span class="help-icon">
+                                <div class="tooltip">Quantization type for context token keys. Only active when CTK/CTV is enabled. f16 provides good balance of quality and performance.</div>
+                            </span>
+                        </label>
                         <select id="contextTokenKey" class="form-control" disabled>
                             <option value="f32">f32</option>
                             <option value="f16" selected>f16</option>
@@ -258,7 +362,11 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="contextTokenValue">Context Token Value (-ctv):</label>
+                        <label for="contextTokenValue">Context Token Value (-ctv):
+                            <span class="help-icon">
+                                <div class="tooltip">Quantization type for context token values. Only active when CTK/CTV is enabled. Should usually match the CTK setting.</div>
+                            </span>
+                        </label>
                         <select id="contextTokenValue" class="form-control" disabled>
                             <option value="f32">f32</option>
                             <option value="f16" selected>f16</option>
@@ -273,11 +381,19 @@
                     </div>
                     <div class="inline-checkboxes">
                         <div class="form-group">
-                            <label for="fastAttention">Fast Attention (--fa):</label>
+                            <label for="fastAttention">Fast Attention (--fa):
+                                <span class="help-icon">
+                                    <div class="tooltip">FlashAttention optimization for faster inference. Can provide significant speedup on compatible hardware (modern GPUs).</div>
+                                </span>
+                            </label>
                             <input type="checkbox" id="fastAttention" class="form-control checkbox">
                         </div>
                         <div class="form-group">
-                            <label for="jinja">Jinja (--jinja):</label>
+                            <label for="jinja">Jinja (--jinja):
+                                <span class="help-icon">
+                                    <div class="tooltip">Enables Jinja template processing for chat formats. Required for some newer models with custom chat templates.</div>
+                                </span>
+                            </label>
                             <input type="checkbox" id="jinja" class="form-control checkbox">
                         </div>
                     </div>
@@ -288,7 +404,11 @@
                     </div>
                     <div class="inline-checkboxes">
                         <div class="form-group">
-                            <label for="draftModelEnable">Enable Speculative Decoding:</label>
+                            <label for="draftModelEnable">Enable Speculative Decoding:
+                                <span class="help-icon">
+                                    <div class="tooltip">Uses a smaller draft model to predict tokens, validated by main model. Can provide 2-3x speed improvement with compatible model pairs.</div>
+                                </span>
+                            </label>
                             <input type="checkbox" id="draftModelEnable" class="form-control checkbox">
                         </div>
                     </div>
@@ -307,7 +427,11 @@
                         <input type="number" id="draftContextSize" class="form-control" min="512" value="16384" disabled>
                     </div>
                     <div class="form-group">
-                        <label for="draftMaxTokens">Draft Max Tokens (--draft-max):</label>
+                        <label for="draftMaxTokens">Draft Max Tokens (--draft-max):
+                            <span class="help-icon">
+                                <div class="tooltip">Number of tokens draft model predicts ahead. Higher values (16-32) improve speed but use more VRAM. Start with 16.</div>
+                            </span>
+                        </label>
                         <input type="number" id="draftMaxTokens" class="form-control" min="1" max="32" value="16" disabled>
                     </div>
                     <div class="form-group">
@@ -321,23 +445,43 @@
 
                     <h3>Server Network Settings</h3>
                     <div class="form-group">
-                        <label for="serverHost">Host (--host):</label>
+                        <label for="serverHost">Host (--host):
+                            <span class="help-icon">
+                                <div class="tooltip">IP address to bind server to. 127.0.0.1 for local only, 0.0.0.0 to allow external connections. Be careful with external access!</div>
+                            </span>
+                        </label>
                         <input type="text" id="serverHost" class="form-control" value="127.0.0.1" placeholder="IP address to bind to">
                     </div>
                     <div class="form-group">
-                        <label for="serverPort">Port (--port):</label>
+                        <label for="serverPort">Port (--port):
+                            <span class="help-icon">
+                                <div class="tooltip">Network port for the API server. Default 8080. Make sure this port isn't already in use by another application.</div>
+                            </span>
+                        </label>
                         <input type="number" id="serverPort" class="form-control" min="1" max="65535" value="8080" placeholder="Port number">
                     </div>
                     <div class="form-group">
-                        <label for="readTimeout">Read Timeout (--timeout-read):</label>
+                        <label for="readTimeout">Read Timeout (--timeout-read):
+                            <span class="help-icon">
+                                <div class="tooltip">Maximum seconds to wait for client requests. 600 seconds (10 minutes) is usually sufficient for most use cases.</div>
+                            </span>
+                        </label>
                         <input type="number" id="readTimeout" class="form-control" min="1" value="600" placeholder="Seconds">
                     </div>
                     <div class="form-group">
-                        <label for="writeTimeout">Write Timeout (--timeout-write):</label>
+                        <label for="writeTimeout">Write Timeout (--timeout-write):
+                            <span class="help-icon">
+                                <div class="tooltip">Maximum seconds to wait when sending responses to clients. Should match or exceed your longest expected generation time.</div>
+                            </span>
+                        </label>
                         <input type="number" id="writeTimeout" class="form-control" min="1" value="600" placeholder="Seconds">
                     </div>
                     <div class="form-group">
-                        <label for="apiKey">API Key (--api-key):</label>
+                        <label for="apiKey">API Key (--api-key):
+                            <span class="help-icon">
+                                <div class="tooltip">Optional authentication key for API requests. Leave empty for no authentication. Required for production deployments.</div>
+                            </span>
+                        </label>
                         <input type="password" id="apiKey" class="form-control" placeholder="Optional authentication key">
                     </div>
 

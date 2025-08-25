@@ -712,3 +712,89 @@ body {
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* Tooltip System */
+.help-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: var(--accent-color);
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: help;
+    margin-left: 6px;
+    position: relative;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.help-icon:hover {
+    background-color: var(--accent-color);
+    filter: brightness(1.2);
+    transform: scale(1.1);
+}
+
+.help-icon::before {
+    content: 'i';
+    font-style: italic;
+}
+
+/* Tooltip content with absolute positioning */
+.tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--text-color);
+    color: var(--container-bg-color);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: left;
+    box-shadow: 0 4px 12px var(--shadow-color);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+    margin-bottom: 8px;
+    
+    /* Flexible width that prefers not breaking words */
+    min-width: 200px;
+    max-width: 450px;
+    width: max-content;
+    
+    /* Better text wrapping without breaking words */
+    white-space: normal;
+    word-wrap: normal;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    hyphens: none;
+}
+
+/* Tooltip arrow with dynamic positioning */
+.tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: var(--arrow-left, 50%);
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: var(--text-color);
+}
+
+/* Show tooltip on hover with absolute positioning */
+.help-icon:hover .tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Constrained tooltip styling */
+.tooltip.tooltip-constrained {
+    text-align: left;
+}

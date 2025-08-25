@@ -131,6 +131,85 @@ function toggleTheme() {
     applyTheme(newTheme);
 }
 
+// Tooltip positioning system with absolute containment
+function initTooltips() {
+    const tooltips = document.querySelectorAll('.tooltip');
+    
+    tooltips.forEach(tooltip => {
+        const helpIcon = tooltip.parentElement;
+        
+        helpIcon.addEventListener('mouseenter', () => {
+            positionTooltipAbsolute(tooltip);
+        });
+    });
+}
+
+function positionTooltipAbsolute(tooltip) {
+    // Reset positioning classes and styles
+    tooltip.classList.remove('tooltip-left', 'tooltip-right', 'tooltip-constrained');
+    tooltip.style.left = '';
+    tooltip.style.right = '';
+    tooltip.style.transform = '';
+    tooltip.style.maxWidth = '';
+    
+    // Get the main content container
+    const mainContent = tooltip.closest('.main-content');
+    const helpIcon = tooltip.parentElement;
+    
+    if (!mainContent || !helpIcon) return;
+    
+    // Force tooltip to be visible for measurement
+    tooltip.style.visibility = 'hidden';
+    tooltip.style.opacity = '1';
+    tooltip.style.display = 'block';
+    
+    // Get precise measurements
+    const mainContentRect = mainContent.getBoundingClientRect();
+    const iconRect = helpIcon.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    
+    const padding = 15;
+    const availableWidth = mainContentRect.width - (padding * 2);
+    const iconCenterRelative = iconRect.left - mainContentRect.left + (iconRect.width / 2);
+    
+    // Calculate tooltip positioning
+    let leftPosition;
+    let maxWidth = Math.min(450, availableWidth);
+    
+    // If tooltip is wider than available space, constrain it
+    if (tooltipRect.width > availableWidth) {
+        tooltip.style.maxWidth = availableWidth + 'px';
+        leftPosition = padding;
+        tooltip.classList.add('tooltip-constrained');
+    } else {
+        // Try to center on icon
+        const idealLeft = iconCenterRelative - (tooltipRect.width / 2);
+        
+        if (idealLeft < padding) {
+            // Too far left, align to left edge
+            leftPosition = padding;
+        } else if (idealLeft + tooltipRect.width > mainContentRect.width - padding) {
+            // Too far right, align to right edge
+            leftPosition = mainContentRect.width - tooltipRect.width - padding;
+        } else {
+            // Center on icon
+            leftPosition = idealLeft;
+        }
+    }
+    
+    // Apply positioning
+    tooltip.style.left = leftPosition + 'px';
+    tooltip.style.transform = 'translateX(0)';
+    
+    // Position arrow relative to icon
+    const arrowPosition = Math.max(20, Math.min(iconCenterRelative - leftPosition, tooltipRect.width - 20));
+    tooltip.style.setProperty('--arrow-left', arrowPosition + 'px');
+    
+    // Reset visibility
+    tooltip.style.visibility = '';
+    tooltip.style.opacity = '';
+}
+
 // Disable/enable buttons based on status
 function updateButtonStates(isRunning) {
     launchBtn.disabled = isRunning;
@@ -1043,6 +1122,9 @@ async function init() {
     
     // Set up theme toggle event listener
     themeToggle.addEventListener('click', toggleTheme);
+    
+    // Initialize tooltips
+    initTooltips();
     
     // Set up tensor split change handler to show/hide warning
     tensorSplitInput.addEventListener('input', function() {
