@@ -798,3 +798,28 @@ body {
 .tooltip.tooltip-constrained {
     text-align: left;
 }
+
+/* Token speed display */
+.token-speed {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-color);
+    background-color: var(--hover-color);
+    padding: 3px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.speed-label {
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+.speed-value {
+    font-weight: bold;
+    color: var(--success-color);
+    font-family: 'Courier New', monospace;
+}

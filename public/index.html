@@ -498,11 +498,18 @@
                         <div class="action-buttons">
                             <button id="launchBtn" class="btn btn-primary">Launch</button>
                             <button id="stopBtn" class="btn btn-danger" disabled>Stop</button>
+                            <button id="openServerBtn" class="btn btn-secondary" disabled title="Open llama.cpp server in browser">
+                                <span>🌐 Open Server</span>
+                            </button>
                         </div>
                         
                         <!-- Model Status Inline -->
                         <div class="model-status-inline">
                             <div id="modelStatusMessage" class="status-message">Not running</div>
+                            <div id="tokenSpeed" class="token-speed" style="display: none;">
+                                <span class="speed-label">Speed:</span>
+                                <span id="speedValue" class="speed-value">0.0 t/s</span>
+                            </div>
                         </div>
                     </div>
                 </div>

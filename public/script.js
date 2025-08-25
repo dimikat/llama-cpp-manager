@@ -62,6 +62,7 @@ const draftPMinInput = document.getElementById('draftPMin');
 
 const launchBtn = document.getElementById('launchBtn');
 const stopBtn = document.getElementById('stopBtn');
+const openServerBtn = document.getElementById('openServerBtn');
 const modelStatusMessage = document.getElementById('modelStatusMessage');
 const modelProcessInfo = document.getElementById('modelProcessInfo');
 const modelOutput = document.getElementById('modelOutput');
@@ -78,6 +79,10 @@ const cancelConfigBtn = document.getElementById('cancelConfigBtn');
 // Theme toggle elements
 const themeToggle = document.getElementById('themeToggle');
 const themeIcon = themeToggle.querySelector('.theme-icon');
+
+// Token speed elements
+const tokenSpeedDiv = document.getElementById('tokenSpeed');
+const speedValueSpan = document.getElementById('speedValue');
 
 // Store WebSocket connection
 let socket = null;
@@ -232,6 +237,37 @@ function clearServerPath() {
 function updateButtonStates(isRunning) {
     launchBtn.disabled = isRunning;
     stopBtn.disabled = !isRunning;
+    openServerBtn.disabled = !isRunning;
+    
+    // Show/hide token speed display based on running status
+    if (isRunning) {
+        tokenSpeedDiv.style.display = 'flex';
+    } else {
+        tokenSpeedDiv.style.display = 'none';
+        // Reset speed display when stopping
+        speedValueSpan.textContent = '0.0 t/s';
+    }
+}
+
+// Update token generation speed display
+function updateTokenSpeed(speed) {
+    if (speed && speed > 0) {
+        speedValueSpan.textContent = speed.toFixed(1) + ' t/s';
+        tokenSpeedDiv.style.display = 'flex';
+    }
+}
+
+// Open llama.cpp server in browser
+function openServerInBrowser() {
+    const host = serverHostInput.value || '127.0.0.1';
+    const port = serverPortInput.value || '8080';
+    const url = `http://${host}:${port}`;
+    
+    // Open in new tab/window
+    window.open(url, '_blank');
+    
+    // Show feedback
+    showOutput(`Opening server at ${url}`);
 }
 
 // Update status display
@@ -801,6 +837,14 @@ function initWebSocket() {
             }
         });
         
+        socket.on('token-speed', (data) => {
+            console.log('DEBUG: Received token-speed event:', data);
+            // Update token generation speed display
+            if (data && data.speed !== undefined) {
+                updateTokenSpeed(data.speed);
+            }
+        });
+        
         socket.on('server-ended', (data) => {
             console.log('Server process ended:', data.message);
             showOutput('Server process has ended');
@@ -1137,6 +1181,7 @@ async function init() {
     // Set up event listeners for launching and stopping
     launchBtn.addEventListener('click', launchServer);
     stopBtn.addEventListener('click', stopServer);
+    openServerBtn.addEventListener('click', openServerInBrowser);
     
     // Set up event listeners for preset buttons
     presetHighPerfBtn.addEventListener('click', applyHighPerformanceSingleGPU);

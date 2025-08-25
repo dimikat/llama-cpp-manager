@@ -150,6 +150,44 @@ async function updateSystemMetricsHistory() {
 // Start periodic system metrics collection
 setInterval(updateSystemMetricsHistory, 1000); // Update every second
 
+// Parse llama.cpp output for performance metrics
+function parsePerformanceMetrics(logData) {
+    // Debug: Log what we're trying to parse
+    if (logData.includes('t/s') || logData.includes('tokens/s') || logData.includes('tok/s')) {
+        console.log('DEBUG: Potential speed data found:', logData.trim());
+    }
+    
+    // Common patterns for token generation speed in llama.cpp output
+    const patterns = [
+        // Pattern: "12.34 tokens/s" or "12.34 t/s"
+        /([\d.]+)\s*(?:tokens?\/s|t\/s)/i,
+        // Pattern: "speed: 12.34 t/s"
+        /speed:\s*([\d.]+)\s*(?:tokens?\/s|t\/s)/i,
+        // Pattern: "12.34 tok/s"
+        /([\d.]+)\s*tok\/s/i,
+        // Pattern: generation speed indicators
+        /generated.*?([\d.]+)\s*(?:tokens?\/s|t\/s)/i,
+        // Pattern: llama_print_timings style output
+        /eval\s+time\s+=.*?([\d.]+)\s*tokens?\/s/i
+    ];
+    
+    for (const pattern of patterns) {
+        const match = logData.match(pattern);
+        if (match) {
+            const speed = parseFloat(match[1]);
+            console.log(`DEBUG: Found speed match: ${speed} t/s from pattern: ${pattern}`);
+            if (speed > 0 && speed < 1000) { // Reasonable speed range
+                console.log(`DEBUG: Broadcasting speed: ${speed} t/s`);
+                // Broadcast speed update to all connected clients
+                connectedClients.forEach(client => {
+                    client.emit('token-speed', { speed: speed });
+                });
+                break; // Only process first match per log chunk
+            }
+        }
+    }
+}
+
 // Function to recursively find GGUF files
 async function findGGUFFiles(directory) {
     const ggufFiles = [];
@@ -247,6 +285,10 @@ app.post('/start', (req, res) => {
             runningProcess.stdout.on('data', (data) => {
                 const logData = data.toString();
                 console.log('STDOUT:', logData);
+                
+                // Parse for performance metrics
+                parsePerformanceMetrics(logData);
+                
                 // Broadcast to all connected clients
                 connectedClients.forEach(client => {
                     client.emit('log-stream', { type: 'stdout', data: logData });
