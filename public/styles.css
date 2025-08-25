@@ -536,3 +536,76 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* New styles for enhanced configuration options */
+.warning-banner {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+.preset-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.btn-outline-primary {
+    background-color: transparent;
+    border: 1px solid #007bff;
+    color: #007bff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.btn-outline-primary:hover {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-outline-primary:active {
+    transform: translateY(1px);
+}
+
+/* Ensure sections are properly spaced */
+.main-content h3 {
+    margin-top: 25px;
+    margin-bottom: 15px;
+    color: #333;
+    font-weight: 500;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 5px;
+}
+
+.main-content h3:first-of-type {
+    margin-top: 0;
+}
+
+/* Improve form layout for new elements */
+.form-group input[type="password"] {
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+}
+
+.form-group input[type="password"]:focus {
+    background-color: white;
+    border-color: #007bff;
+}
+
+/* Multi-GPU warning styling */
+#multiGpuWarning {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

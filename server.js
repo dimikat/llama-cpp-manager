@@ -153,7 +153,7 @@ setInterval(updateSystemMetricsHistory, 1000); // Update every second
 // Function to recursively find GGUF files
 async function findGGUFFiles(directory) {
     const ggufFiles = [];
-    const basePath = directory || "C:\\Users\\anubh\\.lmstudio\\models";
+    const basePath = directory || process.env.LM_STUDIO_MODELS_PATH || "C:\\Users\\%USERNAME%\\.cache\\lm-studio\\models";
     
     try {
         // Check if directory exists

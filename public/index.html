@@ -85,10 +85,63 @@
                         <input type="number" id="ngl" class="form-control" min="0" value="99">
                     </div>
 
+                    <h3>Multi-GPU Settings</h3>
+                    <div class="warning-banner" id="multiGpuWarning" style="display: none;">
+                        <strong>⚠️ Performance Note:</strong> Tensor splitting in llama.cpp may reduce performance. Consider vLLM or ExLlamaV2 for optimal multi-GPU utilization.
+                    </div>
+                    <div class="form-group">
+                        <label for="tensorSplit">Tensor Split (--tensor-split):</label>
+                        <input type="text" id="tensorSplit" class="form-control" placeholder="e.g., 0.5,0.5 for equal split">
+                    </div>
+                    <div class="form-group">
+                        <label for="mainGpu">Main GPU (--main-gpu):</label>
+                        <select id="mainGpu" class="form-control">
+                            <option value="0">GPU 0</option>
+                            <option value="1">GPU 1</option>
+                            <option value="2">GPU 2</option>
+                            <option value="3">GPU 3</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="splitMode">Split Mode (--split-mode):</label>
+                        <select id="splitMode" class="form-control">
+                            <option value="none">None (default)</option>
+                            <option value="layer">Layer</option>
+                            <option value="row">Row</option>
+                        </select>
+                    </div>
+
                     <h3>Performance Settings</h3>
                     <div class="form-group">
                         <label for="threads">Threads (-t):</label>
                         <input type="number" id="threads" class="form-control" min="1" value="12">
+                    </div>
+                    <div class="form-group">
+                        <label for="batchSize">Batch Size (--batch-size, -b):</label>
+                        <input type="number" id="batchSize" class="form-control" min="1" value="2048">
+                    </div>
+                    <div class="form-group">
+                        <label for="ubatchSize">Micro Batch Size (--ubatch-size, -ub):</label>
+                        <input type="number" id="ubatchSize" class="form-control" min="1" value="512">
+                    </div>
+                    <div class="inline-checkboxes">
+                        <div class="form-group">
+                            <label for="contBatching">Continuous Batching (--cont-batching):</label>
+                            <input type="checkbox" id="contBatching" class="form-control checkbox">
+                        </div>
+                        <div class="form-group">
+                            <label for="noMmap">No Memory Mapping (--no-mmap):</label>
+                            <input type="checkbox" id="noMmap" class="form-control checkbox">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="numa">NUMA Optimization (--numa):</label>
+                        <select id="numa" class="form-control">
+                            <option value="">None</option>
+                            <option value="distribute">Distribute</option>
+                            <option value="isolate">Isolate</option>
+                            <option value="numactl">Numactl</option>
+                        </select>
                     </div>
 
                     <h3>Sampling Parameters</h3>
@@ -118,6 +171,46 @@
                         <div class="form-group">
                             <label for="swaFull">SWA Full (--swa-full):</label>
                             <input type="checkbox" id="swaFull" class="form-control checkbox">
+                        </div>
+                    </div>
+
+                    <h3>Advanced Memory Management</h3>
+                    <div class="form-group">
+                        <label for="cacheTypeK">Cache Type K (--cache-type-k):</label>
+                        <select id="cacheTypeK" class="form-control">
+                            <option value="f32">f32</option>
+                            <option value="f16" selected>f16 (default)</option>
+                            <option value="bf16">bf16</option>
+                            <option value="q8_0">q8_0</option>
+                            <option value="q4_0">q4_0</option>
+                            <option value="q4_1">q4_1</option>
+                            <option value="iq4_nl">iq4_nl</option>
+                            <option value="q5_0">q5_0</option>
+                            <option value="q5_1">q5_1</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="cacheTypeV">Cache Type V (--cache-type-v):</label>
+                        <select id="cacheTypeV" class="form-control">
+                            <option value="f32">f32</option>
+                            <option value="f16" selected>f16 (default)</option>
+                            <option value="bf16">bf16</option>
+                            <option value="q8_0">q8_0</option>
+                            <option value="q4_0">q4_0</option>
+                            <option value="q4_1">q4_1</option>
+                            <option value="iq4_nl">iq4_nl</option>
+                            <option value="q5_0">q5_0</option>
+                            <option value="q5_1">q5_1</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="keepModels">Keep Models (--keep):</label>
+                        <input type="number" id="keepModels" class="form-control" min="0" value="0" placeholder="Number of models to keep in memory">
+                    </div>
+                    <div class="inline-checkboxes">
+                        <div class="form-group">
+                            <label for="memoryTest">Memory Test (--memory-test):</label>
+                            <input type="checkbox" id="memoryTest" class="form-control checkbox">
                         </div>
                     </div>
 
@@ -182,6 +275,36 @@
                             <label for="jinja">Jinja (--jinja):</label>
                             <input type="checkbox" id="jinja" class="form-control checkbox">
                         </div>
+                    </div>
+
+                    <h3>Server Network Settings</h3>
+                    <div class="form-group">
+                        <label for="serverHost">Host (--host):</label>
+                        <input type="text" id="serverHost" class="form-control" value="127.0.0.1" placeholder="IP address to bind to">
+                    </div>
+                    <div class="form-group">
+                        <label for="serverPort">Port (--port):</label>
+                        <input type="number" id="serverPort" class="form-control" min="1" max="65535" value="8080" placeholder="Port number">
+                    </div>
+                    <div class="form-group">
+                        <label for="readTimeout">Read Timeout (--timeout-read):</label>
+                        <input type="number" id="readTimeout" class="form-control" min="1" value="600" placeholder="Seconds">
+                    </div>
+                    <div class="form-group">
+                        <label for="writeTimeout">Write Timeout (--timeout-write):</label>
+                        <input type="number" id="writeTimeout" class="form-control" min="1" value="600" placeholder="Seconds">
+                    </div>
+                    <div class="form-group">
+                        <label for="apiKey">API Key (--api-key):</label>
+                        <input type="password" id="apiKey" class="form-control" placeholder="Optional authentication key">
+                    </div>
+
+                    <h3>Preset Configurations</h3>
+                    <div class="preset-buttons">
+                        <button type="button" id="presetHighPerf" class="btn btn-outline-primary">High Performance Single GPU</button>
+                        <button type="button" id="presetBalancedDual" class="btn btn-outline-primary">Balanced Dual GPU</button>
+                        <button type="button" id="presetLargeModel" class="btn btn-outline-primary">Large Model Dual GPU</button>
+                        <button type="button" id="presetCpuOffload" class="btn btn-outline-primary">CPU Offload Hybrid</button>
                     </div>
 
                     <!-- Action Buttons with Model Status -->

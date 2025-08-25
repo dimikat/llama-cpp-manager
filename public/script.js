@@ -19,6 +19,38 @@ const contextTokenKeySelect = document.getElementById('contextTokenKey');
 const contextTokenValueSelect = document.getElementById('contextTokenValue');
 const fastAttentionCheckbox = document.getElementById('fastAttention');
 const jinjaCheckbox = document.getElementById('jinja');
+
+// New Multi-GPU elements
+const tensorSplitInput = document.getElementById('tensorSplit');
+const mainGpuSelect = document.getElementById('mainGpu');
+const splitModeSelect = document.getElementById('splitMode');
+
+// New Performance elements
+const batchSizeInput = document.getElementById('batchSize');
+const ubatchSizeInput = document.getElementById('ubatchSize');
+const contBatchingCheckbox = document.getElementById('contBatching');
+const noMmapCheckbox = document.getElementById('noMmap');
+const numaSelect = document.getElementById('numa');
+
+// New Advanced Memory elements
+const cacheTypeKSelect = document.getElementById('cacheTypeK');
+const cacheTypeVSelect = document.getElementById('cacheTypeV');
+const keepModelsInput = document.getElementById('keepModels');
+const memoryTestCheckbox = document.getElementById('memoryTest');
+
+// New Server Network elements
+const serverHostInput = document.getElementById('serverHost');
+const serverPortInput = document.getElementById('serverPort');
+const readTimeoutInput = document.getElementById('readTimeout');
+const writeTimeoutInput = document.getElementById('writeTimeout');
+const apiKeyInput = document.getElementById('apiKey');
+
+// Preset buttons
+const presetHighPerfBtn = document.getElementById('presetHighPerf');
+const presetBalancedDualBtn = document.getElementById('presetBalancedDual');
+const presetLargeModelBtn = document.getElementById('presetLargeModel');
+const presetCpuOffloadBtn = document.getElementById('presetCpuOffload');
+
 const launchBtn = document.getElementById('launchBtn');
 const stopBtn = document.getElementById('stopBtn');
 const modelStatusMessage = document.getElementById('modelStatusMessage');
@@ -167,7 +199,28 @@ function saveCurrentValues(configId) {
         contextTokenKey: contextTokenKeySelect.value,
         contextTokenValue: contextTokenValueSelect.value,
         fastAttention: fastAttentionCheckbox.checked,
-        jinja: jinjaCheckbox.checked
+        jinja: jinjaCheckbox.checked,
+        // New Multi-GPU parameters
+        tensorSplit: tensorSplitInput.value,
+        mainGpu: mainGpuSelect.value,
+        splitMode: splitModeSelect.value,
+        // New Performance parameters
+        batchSize: parseInt(batchSizeInput.value) || 0,
+        ubatchSize: parseInt(ubatchSizeInput.value) || 0,
+        contBatching: contBatchingCheckbox.checked,
+        noMmap: noMmapCheckbox.checked,
+        numa: numaSelect.value,
+        // New Advanced Memory parameters
+        cacheTypeK: cacheTypeKSelect.value,
+        cacheTypeV: cacheTypeVSelect.value,
+        keepModels: parseInt(keepModelsInput.value) || 0,
+        memoryTest: memoryTestCheckbox.checked,
+        // New Server Network parameters
+        serverHost: serverHostInput.value,
+        serverPort: parseInt(serverPortInput.value) || 0,
+        readTimeout: parseInt(readTimeoutInput.value) || 0,
+        writeTimeout: parseInt(writeTimeoutInput.value) || 0,
+        apiKey: apiKeyInput.value
     };
     
     configurations[configId] = config;
@@ -199,6 +252,32 @@ function loadConfiguration(configId) {
     if (config.contextTokenKey !== undefined) contextTokenKeySelect.value = config.contextTokenKey;
     if (config.contextTokenValue !== undefined) contextTokenValueSelect.value = config.contextTokenValue;
     if (config.fastAttention !== undefined) fastAttentionCheckbox.checked = config.fastAttention;
+    if (config.jinja !== undefined) jinjaCheckbox.checked = config.jinja;
+    
+    // Load new Multi-GPU parameters
+    if (config.tensorSplit !== undefined) tensorSplitInput.value = config.tensorSplit;
+    if (config.mainGpu !== undefined) mainGpuSelect.value = config.mainGpu;
+    if (config.splitMode !== undefined) splitModeSelect.value = config.splitMode;
+    
+    // Load new Performance parameters
+    if (config.batchSize !== undefined) batchSizeInput.value = config.batchSize;
+    if (config.ubatchSize !== undefined) ubatchSizeInput.value = config.ubatchSize;
+    if (config.contBatching !== undefined) contBatchingCheckbox.checked = config.contBatching;
+    if (config.noMmap !== undefined) noMmapCheckbox.checked = config.noMmap;
+    if (config.numa !== undefined) numaSelect.value = config.numa;
+    
+    // Load new Advanced Memory parameters
+    if (config.cacheTypeK !== undefined) cacheTypeKSelect.value = config.cacheTypeK;
+    if (config.cacheTypeV !== undefined) cacheTypeVSelect.value = config.cacheTypeV;
+    if (config.keepModels !== undefined) keepModelsInput.value = config.keepModels;
+    if (config.memoryTest !== undefined) memoryTestCheckbox.checked = config.memoryTest;
+    
+    // Load new Server Network parameters
+    if (config.serverHost !== undefined) serverHostInput.value = config.serverHost;
+    if (config.serverPort !== undefined) serverPortInput.value = config.serverPort;
+    if (config.readTimeout !== undefined) readTimeoutInput.value = config.readTimeout;
+    if (config.writeTimeout !== undefined) writeTimeoutInput.value = config.writeTimeout;
+    if (config.apiKey !== undefined) apiKeyInput.value = config.apiKey;
 }
 
 // Update enable/disable state for context token parameters
@@ -241,7 +320,28 @@ async function launchServer() {
         contextTokenKey: contextTokenKeySelect.value,
         contextTokenValue: contextTokenValueSelect.value,
         fastAttention: fastAttentionCheckbox.checked,
-        jinja: jinjaCheckbox.checked
+        jinja: jinjaCheckbox.checked,
+        // New Multi-GPU parameters
+        tensorSplit: tensorSplitInput.value,
+        mainGpu: mainGpuSelect.value,
+        splitMode: splitModeSelect.value,
+        // New Performance parameters
+        batchSize: parseInt(batchSizeInput.value) || 0,
+        ubatchSize: parseInt(ubatchSizeInput.value) || 0,
+        contBatching: contBatchingCheckbox.checked,
+        noMmap: noMmapCheckbox.checked,
+        numa: numaSelect.value,
+        // New Advanced Memory parameters
+        cacheTypeK: cacheTypeKSelect.value,
+        cacheTypeV: cacheTypeVSelect.value,
+        keepModels: parseInt(keepModelsInput.value) || 0,
+        memoryTest: memoryTestCheckbox.checked,
+        // New Server Network parameters
+        serverHost: serverHostInput.value,
+        serverPort: parseInt(serverPortInput.value) || 0,
+        readTimeout: parseInt(readTimeoutInput.value) || 0,
+        writeTimeout: parseInt(writeTimeoutInput.value) || 0,
+        apiKey: apiKeyInput.value
     };
     
     // Save current values to localStorage (if we have a config ID)
@@ -318,6 +418,78 @@ async function launchServer() {
         // Add jinja flag if checked
         if (config.jinja) {
             args.push('--jinja');
+        }
+        
+        // Add Multi-GPU parameters
+        if (config.tensorSplit && config.tensorSplit.trim()) {
+            args.push('--tensor-split', config.tensorSplit.trim());
+        }
+        
+        if (config.mainGpu && config.mainGpu !== '0') {
+            args.push('--main-gpu', config.mainGpu);
+        }
+        
+        if (config.splitMode && config.splitMode !== 'none') {
+            args.push('--split-mode', config.splitMode);
+        }
+        
+        // Add Performance parameters
+        if (config.batchSize > 0) {
+            args.push('--batch-size', config.batchSize.toString());
+        }
+        
+        if (config.ubatchSize > 0) {
+            args.push('--ubatch-size', config.ubatchSize.toString());
+        }
+        
+        if (config.contBatching) {
+            args.push('--cont-batching');
+        }
+        
+        if (config.noMmap) {
+            args.push('--no-mmap');
+        }
+        
+        if (config.numa && config.numa.trim()) {
+            args.push('--numa', config.numa);
+        }
+        
+        // Add Advanced Memory parameters
+        if (config.cacheTypeK && config.cacheTypeK !== 'f16') {
+            args.push('--cache-type-k', config.cacheTypeK);
+        }
+        
+        if (config.cacheTypeV && config.cacheTypeV !== 'f16') {
+            args.push('--cache-type-v', config.cacheTypeV);
+        }
+        
+        if (config.keepModels > 0) {
+            args.push('--keep', config.keepModels.toString());
+        }
+        
+        if (config.memoryTest) {
+            args.push('--memory-test');
+        }
+        
+        // Add Server Network parameters
+        if (config.serverHost && config.serverHost !== '127.0.0.1') {
+            args.push('--host', config.serverHost);
+        }
+        
+        if (config.serverPort > 0 && config.serverPort !== 8080) {
+            args.push('--port', config.serverPort.toString());
+        }
+        
+        if (config.readTimeout > 0 && config.readTimeout !== 600) {
+            args.push('--timeout-read', config.readTimeout.toString());
+        }
+        
+        if (config.writeTimeout > 0 && config.writeTimeout !== 600) {
+            args.push('--timeout-write', config.writeTimeout.toString());
+        }
+        
+        if (config.apiKey && config.apiKey.trim()) {
+            args.push('--api-key', config.apiKey.trim());
         }
         
         showOutput(`Command arguments: ${args.join(' ')}`);
@@ -568,6 +740,103 @@ function addNewConfiguration() {
     currentConfigId = null;
 }
 
+// Preset configuration functions
+function applyHighPerformanceSingleGPU() {
+    nglInput.value = '99';
+    batchSizeInput.value = '2048';
+    ubatchSizeInput.value = '512';
+    fastAttentionCheckbox.checked = true;
+    mainGpuSelect.value = '0';
+    tensorSplitInput.value = '';
+    splitModeSelect.value = 'none';
+    contBatchingCheckbox.checked = true;
+    noMmapCheckbox.checked = false;
+    mlockCheckbox.checked = true;
+    showMultiGpuWarning(false);
+}
+
+function applyBalancedDualGPU() {
+    nglInput.value = '99';
+    tensorSplitInput.value = '0.5,0.5';
+    splitModeSelect.value = 'layer';
+    batchSizeInput.value = '2048';
+    ubatchSizeInput.value = '512';
+    fastAttentionCheckbox.checked = true;
+    mainGpuSelect.value = '0';
+    contBatchingCheckbox.checked = true;
+    showMultiGpuWarning(true);
+}
+
+function applyLargeModelDualGPU() {
+    nglInput.value = '99';
+    tensorSplitInput.value = '0.6,0.4';
+    splitModeSelect.value = 'layer';
+    batchSizeInput.value = '1024';
+    ubatchSizeInput.value = '256';
+    fastAttentionCheckbox.checked = true;
+    mainGpuSelect.value = '0';
+    contextSizeInput.value = '8192';
+    cacheTypeKSelect.value = 'q4_0';
+    cacheTypeVSelect.value = 'q4_0';
+    showMultiGpuWarning(true);
+}
+
+function applyCpuOffloadHybrid() {
+    nglInput.value = '40';
+    tensorSplitInput.value = '0.7,0.3';
+    splitModeSelect.value = 'layer';
+    batchSizeInput.value = '512';
+    ubatchSizeInput.value = '128';
+    threadsInput.value = '16';
+    noMmapCheckbox.checked = true;
+    mlockCheckbox.checked = false;
+    showMultiGpuWarning(true);
+}
+
+function showMultiGpuWarning(show) {
+    const warningBanner = document.getElementById('multiGpuWarning');
+    if (warningBanner) {
+        warningBanner.style.display = show ? 'block' : 'none';
+    }
+}
+
+// Auto-recommendation based on model selection
+function analyzeModelAndRecommendSettings() {
+    const selectedModel = modelPathSelect.value;
+    if (!selectedModel) return;
+    
+    const modelName = selectedModel.toLowerCase();
+    const output = [];
+    
+    // Model size recommendations
+    if (modelName.includes('7b') || modelName.includes('8b')) {
+        output.push('💡 Detected small model (7B-8B): High Performance Single GPU preset recommended');
+        if (parseInt(batchSizeInput.value) < 2048) batchSizeInput.value = '2048';
+        if (parseInt(ubatchSizeInput.value) < 512) ubatchSizeInput.value = '512';
+    } else if (modelName.includes('13b') || modelName.includes('14b') || modelName.includes('15b')) {
+        output.push('💡 Detected medium model (13B-15B): Consider Balanced Dual GPU for better performance');
+    } else if (modelName.includes('30b') || modelName.includes('34b') || modelName.includes('70b') || modelName.includes('72b')) {
+        output.push('💡 Detected large model (30B+): Large Model Dual GPU preset strongly recommended');
+        if (parseInt(contextSizeInput.value) > 8192) {
+            output.push('⚠️ Large context with big model may require CPU offloading');
+        }
+    }
+    
+    // Quantization recommendations
+    if (modelName.includes('q2_k') || modelName.includes('q3_k')) {
+        output.push('📊 Low quantization detected: Consider higher batch sizes for better throughput');
+    } else if (modelName.includes('q8_0') || modelName.includes('f16') || modelName.includes('f32')) {
+        output.push('📊 High precision model: May require reduced batch size or CPU offloading');
+    }
+    
+    // Display recommendations
+    if (output.length > 0) {
+        showOutput('=== Model Analysis & Recommendations ===');
+        output.forEach(msg => showOutput(msg));
+        showOutput('=====================================');
+    }
+}
+
 // Initialize the application
 async function init() {
     // Load configurations
@@ -586,6 +855,21 @@ async function init() {
     // Set up event listeners for launching and stopping
     launchBtn.addEventListener('click', launchServer);
     stopBtn.addEventListener('click', stopServer);
+    
+    // Set up event listeners for preset buttons
+    presetHighPerfBtn.addEventListener('click', applyHighPerformanceSingleGPU);
+    presetBalancedDualBtn.addEventListener('click', applyBalancedDualGPU);
+    presetLargeModelBtn.addEventListener('click', applyLargeModelDualGPU);
+    presetCpuOffloadBtn.addEventListener('click', applyCpuOffloadHybrid);
+    
+    // Set up tensor split change handler to show/hide warning
+    tensorSplitInput.addEventListener('input', function() {
+        const hasTensorSplit = this.value && this.value.trim().includes(',');
+        showMultiGpuWarning(hasTensorSplit);
+    });
+    
+    // Set up model change handler for automatic recommendations
+    modelPathSelect.addEventListener('change', analyzeModelAndRecommendSettings);
     
     // Check initial status
     await fetchStatus();
