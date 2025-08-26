@@ -103,6 +103,9 @@ let currentTheme = THEMES.LIGHT;
 // Server path management
 const SERVER_PATH_KEY = 'llamaCppServerPath';
 
+// Tab management
+let currentTab = 'model';
+
 // Chart variables
 let cpuCtx, ramCtx, gpuCtx, vramCtx;
 let chartData = {
@@ -268,6 +271,39 @@ function openServerInBrowser() {
     
     // Show feedback
     showOutput(`Opening server at ${url}`);
+}
+
+// Tab management functions
+function initTabs() {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+    
+    tabButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            const tabId = button.getAttribute('data-tab');
+            switchTab(tabId);
+        });
+    });
+}
+
+function switchTab(tabId) {
+    // Update active states
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+    
+    // Activate selected tab and panel
+    const targetButton = document.querySelector(`[data-tab="${tabId}"]`);
+    const targetPanel = document.getElementById(`tab-${tabId}`);
+    
+    if (targetButton && targetPanel) {
+        targetButton.classList.add('active');
+        targetPanel.classList.add('active');
+        currentTab = tabId;
+    }
 }
 
 // Update status display
@@ -1194,6 +1230,9 @@ async function init() {
     
     // Initialize tooltips
     initTooltips();
+    
+    // Initialize tabs
+    initTabs();
     
     // Set up tensor split change handler to show/hide warning
     tensorSplitInput.addEventListener('input', function() {
