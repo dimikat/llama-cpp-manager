@@ -2,6 +2,7 @@ const express = require('express');
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const os = require('os');
 const osUtils = require('os-utils');
 const app = express();
@@ -194,6 +195,178 @@ function parsePerformanceMetrics(logData) {
 // Store the detected context size for later use
 let detectedContextSize = 16384; // Default fallback
 
+// Model metadata cache to avoid re-parsing GGUF files
+const modelMetadataCache = new Map();
+
+// GGUF header parsing functionality
+function parseGGUFMetadata(filePath) {
+    try {
+        const stats = fsSync.statSync(filePath);
+        const cacheKey = `${filePath}:${stats.mtime.getTime()}`;
+        
+        // Check cache first
+        if (modelMetadataCache.has(cacheKey)) {
+            return modelMetadataCache.get(cacheKey);
+        }
+        
+        // Read GGUF header (first 1024 bytes should be enough for metadata)
+        const fd = fsSync.openSync(filePath, 'r');
+        const headerBuffer = Buffer.alloc(1024);
+        fsSync.readSync(fd, headerBuffer, 0, 1024, 0);
+        fsSync.closeSync(fd);
+        
+        // Parse GGUF magic number and basic structure
+        const magic = headerBuffer.toString('ascii', 0, 4);
+        if (magic !== 'GGUF') {
+            throw new Error('Not a valid GGUF file');
+        }
+        
+        // Parse version (4 bytes, little-endian)
+        const version = headerBuffer.readUInt32LE(4);
+        
+        // Parse tensor count (8 bytes, little-endian)  
+        const tensorCount = headerBuffer.readBigUInt64LE(8);
+        
+        // Parse metadata count (8 bytes, little-endian)
+        const metadataCount = headerBuffer.readBigUInt64LE(16);
+        
+        // For simplicity, extract metadata from filename and basic file analysis
+        // A full GGUF parser would be more complex but this gives us useful info
+        const metadata = extractMetadataFromFilename(filePath, stats.size);
+        
+        // Cache the result
+        modelMetadataCache.set(cacheKey, metadata);
+        
+        return metadata;
+        
+    } catch (error) {
+        console.error(`Error parsing GGUF metadata for ${filePath}:`, error.message);
+        // Fallback to filename-based parsing
+        const stats = fsSync.statSync(filePath);
+        return extractMetadataFromFilename(filePath, stats.size);
+    }
+}
+
+// Extract metadata from filename patterns and file analysis
+function extractMetadataFromFilename(filePath, fileSize) {
+    const filename = path.basename(filePath, '.gguf');
+    const metadata = {
+        name: filename,
+        path: filePath,
+        fileSize: fileSize,
+        fileSizeMB: Math.round(fileSize / (1024 * 1024)),
+        architecture: 'Unknown',
+        parameters: 'Unknown',
+        quantization: 'Unknown',
+        contextLength: 'Unknown',
+        specialCapabilities: []
+    };
+    
+    // Detect architecture
+    const archPatterns = {
+        'Llama': /llama[_-]?(\d+)?[\._-]/i,
+        'Gemma': /gemma[_-]?(\d+)?[\._-]/i,
+        'Mistral': /mistral[_-]?(\d+)?[\._-]/i,
+        'Mixtral': /mixtral[_-]?(\d+)?[\._-]/i,
+        'Qwen': /qwen[_-]?(\d+)?[\._-]/i,
+        'GLM': /glm[_-]?(\d+)?[\._-]/i,
+        'CodeLlama': /code[_-]?llama[_-]?(\d+)?[\._-]/i,
+        'DeepSeek': /deepseek[_-]?(\d+)?[\._-]/i
+    };
+    
+    for (const [arch, pattern] of Object.entries(archPatterns)) {
+        if (pattern.test(filename)) {
+            metadata.architecture = arch;
+            break;
+        }
+    }
+    
+    // Detect parameter count
+    const paramPatterns = [
+        /(\d+)B/i,  // 7B, 13B, etc.
+        /(\d+)b/,   // lowercase version
+        /(\d+\.?\d*)[_-]?billion/i
+    ];
+    
+    for (const pattern of paramPatterns) {
+        const match = filename.match(pattern);
+        if (match) {
+            metadata.parameters = match[1] + 'B';
+            break;
+        }
+    }
+    
+    // Detect quantization
+    const quantPatterns = {
+        'Q2_K': { regex: /q2[_-]?k/i, quality: 'Very Low', description: 'Smallest size, lowest quality' },
+        'Q3_K_S': { regex: /q3[_-]?k[_-]?s/i, quality: 'Low', description: 'Small size, some quality loss' },
+        'Q3_K_M': { regex: /q3[_-]?k[_-]?m/i, quality: 'Low-Med', description: 'Smaller size, moderate quality' },
+        'Q3_K_L': { regex: /q3[_-]?k[_-]?l/i, quality: 'Medium', description: 'Medium size, better quality' },
+        'Q4_0': { regex: /q4[_-]?0/i, quality: 'Medium', description: 'Fast, decent quality' },
+        'Q4_1': { regex: /q4[_-]?1/i, quality: 'Medium', description: 'Fast, slightly better than Q4_0' },
+        'Q4_K_S': { regex: /q4[_-]?k[_-]?s/i, quality: 'Medium', description: 'Small, good quality' },
+        'Q4_K_M': { regex: /q4[_-]?k[_-]?m/i, quality: 'Good', description: 'Balanced size/quality' },
+        'Q5_0': { regex: /q5[_-]?0/i, quality: 'High', description: 'Larger, better quality' },
+        'Q5_1': { regex: /q5[_-]?1/i, quality: 'High', description: 'Even better quality' },
+        'Q5_K_S': { regex: /q5[_-]?k[_-]?s/i, quality: 'High', description: 'Large, high quality' },
+        'Q5_K_M': { regex: /q5[_-]?k[_-]?m/i, quality: 'Very High', description: 'Large, very high quality' },
+        'Q6_K': { regex: /q6[_-]?k/i, quality: 'Very High', description: 'Very large, excellent quality' },
+        'Q8_0': { regex: /q8[_-]?0/i, quality: 'Excellent', description: 'Largest, best quality' },
+        'F16': { regex: /f16/i, quality: 'Perfect', description: 'Half precision, original quality' },
+        'F32': { regex: /f32/i, quality: 'Perfect', description: 'Full precision, original quality' }
+    };
+    
+    for (const [quant, info] of Object.entries(quantPatterns)) {
+        if (info.regex.test(filename)) {
+            metadata.quantization = quant;
+            metadata.quantizationQuality = info.quality;
+            metadata.quantizationDescription = info.description;
+            break;
+        }
+    }
+    
+    // Detect special capabilities
+    if (/instruct|chat/i.test(filename)) {
+        metadata.specialCapabilities.push('Chat/Instruct');
+    }
+    if (/code/i.test(filename)) {
+        metadata.specialCapabilities.push('Code Generation');
+    }
+    if (/vision|mmproj|multimodal/i.test(filename)) {
+        metadata.specialCapabilities.push('Vision/Multimodal');
+    }
+    if (/moe|mixtral/i.test(filename)) {
+        metadata.specialCapabilities.push('Mixture of Experts');
+    }
+    if (/thinking|think/i.test(filename)) {
+        metadata.specialCapabilities.push('Thinking Mode');
+    }
+    
+    // Estimate context length based on model and patterns
+    if (/128k|131072/i.test(filename)) {
+        metadata.contextLength = '128K';
+    } else if (/32k|32768/i.test(filename)) {
+        metadata.contextLength = '32K';
+    } else if (/16k|16384/i.test(filename)) {
+        metadata.contextLength = '16K';
+    } else if (/8k|8192/i.test(filename)) {
+        metadata.contextLength = '8K';
+    } else {
+        // Default based on architecture
+        if (metadata.architecture === 'Llama' || metadata.architecture === 'CodeLlama') {
+            metadata.contextLength = '8K'; // Most Llama models
+        } else if (metadata.architecture === 'Mistral' || metadata.architecture === 'Mixtral') {
+            metadata.contextLength = '32K'; // Mistral models typically have 32K
+        } else if (metadata.architecture === 'Qwen') {
+            metadata.contextLength = '32K'; // Qwen models typically have 32K
+        } else {
+            metadata.contextLength = '4K'; // Conservative default
+        }
+    }
+    
+    return metadata;
+}
+
 // Parse context usage from llama.cpp output
 function parseContextUsage(logData) {
     // Debug: Log all output to help identify patterns
@@ -338,13 +511,34 @@ async function findGGUFFiles(directory) {
                         // Recursively search subdirectories
                         await searchDirectory(itemPath);
                     } else if (item.isFile() && item.name.toLowerCase().endsWith('.gguf')) {
-                        // Add GGUF file with relative path
+                        // Add GGUF file with metadata parsing
                         const relativePath = path.relative(basePath, itemPath);
-                        ggufFiles.push({
-                            name: item.name,
-                            path: itemPath,
-                            relativePath: relativePath
-                        });
+                        
+                        try {
+                            // Parse metadata from GGUF file
+                            const metadata = parseGGUFMetadata(itemPath);
+                            
+                            ggufFiles.push({
+                                name: item.name,
+                                path: itemPath,
+                                relativePath: relativePath,
+                                ...metadata // Spread metadata into the model object
+                            });
+                        } catch (error) {
+                            console.error(`Error parsing metadata for ${item.name}:`, error.message);
+                            // Fallback to basic file info
+                            ggufFiles.push({
+                                name: item.name,
+                                path: itemPath,
+                                relativePath: relativePath,
+                                architecture: 'Unknown',
+                                parameters: 'Unknown',
+                                quantization: 'Unknown',
+                                contextLength: 'Unknown',
+                                fileSizeMB: 0,
+                                specialCapabilities: []
+                            });
+                        }
                     }
                 }
             } catch (error) {

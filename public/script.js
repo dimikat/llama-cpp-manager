@@ -443,6 +443,22 @@ async function fetchStatus() {
     }
 }
 
+// Get architecture icon for model display
+function getArchitectureIcon(architecture) {
+    const icons = {
+        'Llama': '🦙',
+        'CodeLlama': '👨‍💻',
+        'Gemma': '💎', 
+        'Mistral': '🌟',
+        'Mixtral': '🔥',
+        'Qwen': '🤖',
+        'GLM': '🧠',
+        'DeepSeek': '🔍',
+        'Unknown': '📄'
+    };
+    return icons[architecture] || icons['Unknown'];
+}
+
 // Fetch and populate models dropdown
 async function fetchModels() {
     try {
@@ -453,11 +469,58 @@ async function fetchModels() {
             // Clear existing options except the placeholder
             modelPathSelect.innerHTML = '<option value="">-- Select a Model --</option>';
             
-            // Add models to dropdown
+            // Add models to dropdown with rich metadata
             data.models.forEach(model => {
                 const option = document.createElement('option');
                 option.value = model.path;  // Use full path for the value
-                option.textContent = model.relativePath || model.name;  // Show relative path or just name
+                
+                // Create rich display text with metadata
+                let displayText = '';
+                
+                // Add architecture icon
+                const archIcon = getArchitectureIcon(model.architecture);
+                if (archIcon) {
+                    displayText += archIcon + ' ';
+                }
+                
+                // Add model name and key details
+                const modelName = model.name.replace('.gguf', '');
+                const params = model.parameters !== 'Unknown' ? model.parameters : '';
+                const quant = model.quantization !== 'Unknown' ? model.quantization : '';
+                const context = model.contextLength !== 'Unknown' ? model.contextLength : '';
+                const sizeMB = model.fileSizeMB ? `${model.fileSizeMB}MB` : '';
+                
+                // Build compact description
+                displayText += modelName;
+                
+                if (params || quant || context) {
+                    const details = [];
+                    if (params) details.push(params);
+                    if (quant) {
+                        const quality = model.quantizationQuality ? `${quant} (${model.quantizationQuality})` : quant;
+                        details.push(quality);
+                    }
+                    if (context) details.push(`${context} ctx`);
+                    if (sizeMB) details.push(sizeMB);
+                    
+                    displayText += ` - ${details.join(', ')}`;
+                }
+                
+                // Add special capabilities as badges
+                if (model.specialCapabilities && model.specialCapabilities.length > 0) {
+                    const capabilities = model.specialCapabilities.slice(0, 2); // Limit to 2 to avoid cluttering
+                    displayText += ` [${capabilities.join(', ')}]`;
+                }
+                
+                option.textContent = displayText;
+                
+                // Store metadata as data attributes for potential future use
+                option.dataset.architecture = model.architecture;
+                option.dataset.parameters = model.parameters;
+                option.dataset.quantization = model.quantization;
+                option.dataset.contextLength = model.contextLength;
+                option.dataset.capabilities = JSON.stringify(model.specialCapabilities || []);
+                
                 modelPathSelect.appendChild(option);
             });
             
