@@ -283,6 +283,48 @@
                                     </label>
                                     <input type="checkbox" id="noMmap" class="form-control checkbox">
                                 </div>
+                                <div class="form-group">
+                                    <label for="swaFull">SWA Full (--swa-full):
+                                        <span class="help-icon">
+                                            <div class="tooltip">Sliding Window Attention optimization. Can improve performance for models with sliding window attention support.</div>
+                                        </span>
+                                    </label>
+                                    <input type="checkbox" id="swaFull" class="form-control checkbox">
+                                </div>
+                            </div>
+                            
+                            <h4>Sampling Parameters</h4>
+                            <div class="form-group">
+                                <label for="temp">Temperature (--temp):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Controls randomness in output. 0.1 = very focused, 0.7 = balanced, 1.2+ = very creative. Most models work best with 0.6-0.8.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="temp" class="form-control" step="0.01" min="0" value="0.7">
+                            </div>
+                            <div class="form-group">
+                                <label for="topK">Top-K (--top-k):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Limits vocabulary to top K most probable tokens. 20-40 is typical. Higher values = more variety, lower = more focused.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="topK" class="form-control" min="0" value="20">
+                            </div>
+                            <div class="form-group">
+                                <label for="topP">Top-P (--top-p):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Cumulative probability threshold. 0.9-0.95 typical. Alternative to Top-K. Set to 0.00 to disable nucleus sampling.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="topP" class="form-control" step="0.01" min="0" max="1" value="0.00">
+                            </div>
+                            <div class="form-group">
+                                <label for="repeatPenalty">Repeat Penalty (--repeat-penalty):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Penalizes repeated words/phrases. 1.0 = no penalty, 1.05-1.15 typical. Higher values reduce repetition but may affect coherence.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="repeatPenalty" class="form-control" step="0.01" min="0" value="1.05">
                             </div>
                             
                             <h4>Context Token Parameters</h4>
@@ -333,6 +375,95 @@
                                 </select>
                             </div>
                             
+                            <h4>Cache Types</h4>
+                            <div class="form-group">
+                                <label for="cacheTypeK">Cache Type K (--cache-type-k):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Quantization type for KV cache keys. Affects memory usage vs quality. q4_0 saves significant VRAM with minimal quality loss.</div>
+                                    </span>
+                                </label>
+                                <select id="cacheTypeK" class="form-control">
+                                    <option value="f32">f32</option>
+                                    <option value="f16">f16</option>
+                                    <option value="bf16">bf16</option>
+                                    <option value="q8_0">q8_0</option>
+                                    <option value="q4_0" selected>q4_0</option>
+                                    <option value="q4_1">q4_1</option>
+                                    <option value="iq4_nl">iq4_nl</option>
+                                    <option value="q5_0">q5_0</option>
+                                    <option value="q5_1">q5_1</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="cacheTypeV">Cache Type V (--cache-type-v):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Quantization type for KV cache values. Should usually match Cache Type K setting. q4_0 provides good VRAM savings.</div>
+                                    </span>
+                                </label>
+                                <select id="cacheTypeV" class="form-control">
+                                    <option value="f32">f32</option>
+                                    <option value="f16">f16</option>
+                                    <option value="bf16">bf16</option>
+                                    <option value="q8_0">q8_0</option>
+                                    <option value="q4_0" selected>q4_0</option>
+                                    <option value="q4_1">q4_1</option>
+                                    <option value="iq4_nl">iq4_nl</option>
+                                    <option value="q5_0">q5_0</option>
+                                    <option value="q5_1">q5_1</option>
+                                </select>
+                            </div>
+                            
+                            <h4>Mixture of Experts (MoE)</h4>
+                            <div class="form-group">
+                                <label for="nCpuMoe">CPU MoE Layers (--n-cpu-moe):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Number of Mixture of Experts layers to run on CPU. For MoE models like Mixtral. Reduces VRAM usage at the cost of speed.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="nCpuMoe" class="form-control" min="0" value="8">
+                            </div>
+                            <div class="inline-checkboxes">
+                                <div class="form-group">
+                                    <label for="cpuMoe">CPU MoE (--cpu-moe):
+                                        <span class="help-icon">
+                                            <div class="tooltip">Forces Mixture of Experts computation on CPU instead of GPU. Can help with VRAM constraints for MoE models like Mixtral.</div>
+                                        </span>
+                                    </label>
+                                    <input type="checkbox" id="cpuMoe" class="form-control checkbox">
+                                </div>
+                            </div>
+                            
+                            <div class="inline-checkboxes">
+                                <div class="form-group">
+                                    <label for="jinja">Jinja (--jinja):
+                                        <span class="help-icon">
+                                            <div class="tooltip">Enables Jinja template processing for chat formats. Required for some newer models with custom chat templates.</div>
+                                        </span>
+                                    </label>
+                                    <input type="checkbox" id="jinja" class="form-control checkbox">
+                                </div>
+                            </div>
+                            
+                            <h4>Memory Management</h4>
+                            <div class="form-group">
+                                <label for="keepModels">Keep Models (--keep):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Number of models to keep loaded in memory. 0 = unload after use, 1+ = keep loaded for faster switching. Uses more VRAM but improves performance.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="keepModels" class="form-control" min="0" value="0">
+                            </div>
+                            <div class="inline-checkboxes">
+                                <div class="form-group">
+                                    <label for="memoryTest">Memory Test (--memory-test):
+                                        <span class="help-icon">
+                                            <div class="tooltip">Performs memory bandwidth test on startup. Useful for debugging memory-related performance issues but adds startup time.</div>
+                                        </span>
+                                    </label>
+                                    <input type="checkbox" id="memoryTest" class="form-control checkbox">
+                                </div>
+                            </div>
+                            
                             <h4>Speculative Decoding</h4>
                             <div class="info-banner" id="draftModelInfo">
                                 <strong>⚡ Performance Boost:</strong> Use a smaller draft model to predict tokens, validated by the main model. Can provide 2-3x speed improvement for compatible model pairs.
@@ -352,6 +483,46 @@
                                 <select id="draftModelPath" class="form-control" disabled>
                                     <option value="">-- Select a Draft Model --</option>
                                 </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="draftGpuLayers">Draft GPU Layers (--n-gpu-layers-draft):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Number of layers to run on GPU for draft model. Usually all layers for best performance. Should be less than or equal to main model GPU layers.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="draftGpuLayers" class="form-control" min="0" value="40" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label for="draftContextSize">Draft Context Size (--ctx-size-draft):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Context size for draft model. Should usually match main model context size for best compatibility.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="draftContextSize" class="form-control" min="512" value="8192" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label for="draftMaxTokens">Draft Max Tokens (--draft):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Maximum number of tokens draft model predicts ahead. Higher values improve speed but use more VRAM. 16-32 typical range.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="draftMaxTokens" class="form-control" min="1" value="16" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label for="draftMinTokens">Draft Min Tokens (--draft-min):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Minimum number of draft tokens to keep. Usually 1. Lower values can improve quality at the cost of speed.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="draftMinTokens" class="form-control" min="1" value="1" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label for="draftPMin">Draft P Min (--draft-p-min):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Minimum probability threshold for draft token acceptance. 0.0-1.0 range. Higher values = more conservative, lower = more aggressive.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="draftPMin" class="form-control" step="0.01" min="0" max="1" value="0.05" disabled>
                             </div>
                         </div>
 
@@ -385,6 +556,24 @@
                                 </label>
                                 <input type="password" id="apiKey" class="form-control" placeholder="Optional authentication key">
                             </div>
+                            
+                            <div class="form-group">
+                                <label for="readTimeout">Read Timeout (--timeout-read):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Server read timeout in seconds. How long server waits for client requests. Default is 600 seconds (10 minutes).</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="readTimeout" class="form-control" min="1" value="600" placeholder="Read timeout in seconds">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="writeTimeout">Write Timeout (--timeout-write):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Server write timeout in seconds. How long server waits to send responses. Default is 600 seconds (10 minutes).</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="writeTimeout" class="form-control" min="1" value="600" placeholder="Write timeout in seconds">
+                            </div>
                         </div>
                         </div>
                     </div>
@@ -415,6 +604,29 @@
                                     <span id="speedValue" class="speed-value">0.0 t/s</span>
                                 </div>
                             </div>
+                        </div>
+                        
+                        <!-- Context Window Visualization -->
+                        <div class="context-visualization" id="contextVisualization" style="display: none;">
+                            <div class="context-header">
+                                <span class="context-title">Context Usage</span>
+                                <span class="context-info" id="contextInfo">0 / 0 tokens (0%)</span>
+                            </div>
+                            <div class="context-bar-container">
+                                <div class="context-bar">
+                                    <div class="context-used" id="contextUsed" style="width: 0%"></div>
+                                    <div class="context-available"></div>
+                                </div>
+                            </div>
+                            <div class="context-details">
+                                <span class="turns-estimate" id="turnsEstimate">Estimated turns remaining: ∞</span>
+                                <span class="context-warning" id="contextWarning"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- Demo Context Button (temporary for testing) -->
+                        <div style="margin-bottom: 10px;">
+                            <button id="demoContextBtn" class="btn btn-outline-secondary" style="font-size: 10px; padding: 4px 8px;">Demo Context</button>
                         </div>
                         
                         <div id="modelProcessInfo" class="process-info">No process information</div>

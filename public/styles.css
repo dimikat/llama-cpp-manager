@@ -840,6 +840,99 @@ body {
     font-family: 'Courier New', monospace;
 }
 
+/* Context Window Visualization */
+.context-visualization {
+    background-color: var(--container-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+}
+
+.context-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.context-title {
+    font-weight: 500;
+    font-size: 13px;
+    color: var(--text-color);
+}
+
+.context-info {
+    font-size: 12px;
+    color: var(--text-color);
+    font-family: 'Courier New', monospace;
+}
+
+.context-bar-container {
+    margin-bottom: 8px;
+}
+
+.context-bar {
+    width: 100%;
+    height: 8px;
+    background-color: var(--hover-color);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid var(--border-color);
+}
+
+.context-used {
+    height: 100%;
+    background: linear-gradient(90deg, var(--success-color) 0%, var(--success-color) 70%, #ffa500 80%, #ff6b6b 95%);
+    transition: width 0.5s ease, background-color 0.3s ease;
+    border-radius: 3px 0 0 3px;
+}
+
+.context-used.warning {
+    background: linear-gradient(90deg, #ffa500 0%, #ff6b6b 100%);
+}
+
+.context-used.critical {
+    background: linear-gradient(90deg, #ff6b6b 0%, #d63031 100%);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.context-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+}
+
+.turns-estimate {
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+.context-warning {
+    color: var(--warning-color);
+    font-weight: 500;
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.context-warning.critical {
+    color: #d63031;
+    animation: blink 1.5s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
+}
+
 /* Configuration Tabs System */
 .config-tabs {
     margin-bottom: 20px;

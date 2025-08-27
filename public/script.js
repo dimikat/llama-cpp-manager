@@ -106,6 +106,10 @@ const SERVER_PATH_KEY = 'llamaCppServerPath';
 // Tab management
 let currentTab = 'model';
 
+// Context visualization variables
+let contextSize = 0;
+let currentContextUsage = { used: 0, total: 0, percentage: 0 };
+
 // Chart variables
 let cpuCtx, ramCtx, gpuCtx, vramCtx;
 let chartData = {
@@ -258,6 +262,89 @@ function updateTokenSpeed(speed) {
         speedValueSpan.textContent = speed.toFixed(1) + ' t/s';
         tokenSpeedDiv.style.display = 'flex';
     }
+}
+
+// Context visualization functions
+function showContextVisualization() {
+    const contextViz = document.getElementById('contextVisualization');
+    if (contextViz) {
+        contextViz.style.display = 'block';
+    }
+}
+
+function hideContextVisualization() {
+    const contextViz = document.getElementById('contextVisualization');
+    if (contextViz) {
+        contextViz.style.display = 'none';
+    }
+}
+
+function updateContextVisualization(used, total, percentage) {
+    try {
+        currentContextUsage = { used, total, percentage };
+        
+        const contextInfo = document.getElementById('contextInfo');
+        const contextUsed = document.getElementById('contextUsed');
+        const contextWarning = document.getElementById('contextWarning');
+        const turnsEstimate = document.getElementById('turnsEstimate');
+        
+        if (!contextInfo || !contextUsed) {
+            console.log('DEBUG: Context visualization elements not found');
+            return;
+        }
+    
+    // Update text information
+    contextInfo.textContent = `${used.toLocaleString()} / ${total.toLocaleString()} tokens (${percentage.toFixed(1)}%)`;
+    
+    // Update progress bar
+    contextUsed.style.width = `${percentage}%`;
+    
+    // Update styling based on usage level
+    contextUsed.classList.remove('warning', 'critical');
+    contextWarning.classList.remove('critical');
+    contextWarning.textContent = '';
+    
+    if (percentage >= 95) {
+        contextUsed.classList.add('critical');
+        contextWarning.classList.add('critical');
+        contextWarning.textContent = 'Context Almost Full';
+    } else if (percentage >= 80) {
+        contextUsed.classList.add('warning');
+        contextWarning.textContent = 'Context Warning';
+    }
+    
+    // Calculate estimated turns remaining
+    if (turnsEstimate) {
+        const remaining = total - used;
+        const averageTokensPerTurn = estimateTokensPerTurn(used, total);
+        
+        if (remaining <= 0) {
+            turnsEstimate.textContent = 'Estimated turns remaining: 0';
+        } else if (averageTokensPerTurn > 0) {
+            const estimatedTurns = Math.floor(remaining / averageTokensPerTurn);
+            turnsEstimate.textContent = `Estimated turns remaining: ${estimatedTurns}`;
+        } else {
+            turnsEstimate.textContent = 'Estimated turns remaining: ∞';
+        }
+    }
+    } catch (error) {
+        console.log('DEBUG: Error updating context visualization:', error.message);
+    }
+}
+
+function estimateTokensPerTurn(used, total) {
+    // Simple heuristic: assume average turn is about 50-100 tokens
+    // This is a rough estimate and could be improved with actual conversation tracking
+    const defaultTokensPerTurn = 75;
+    
+    // If we have significant usage, try to estimate based on usage pattern
+    if (used > 200) {
+        // Assume this represents several turns, estimate average
+        const estimatedTurns = Math.max(1, Math.floor(used / 100)); // Rough turn count estimate
+        return Math.max(defaultTokensPerTurn, used / estimatedTurns);
+    }
+    
+    return defaultTokensPerTurn;
 }
 
 // Open llama.cpp server in browser
@@ -586,7 +673,10 @@ function updateDraftModelEnableState() {
 
 // Launch the server with all parameters
 async function launchServer() {
+    console.log('DEBUG: launchServer function called');
+    
     const serverPath = serverPathInput.value.trim();
+    console.log('DEBUG: serverPath:', serverPath);
     
     if (!serverPath) {
         alert('Please enter the path to llama-server.exe');
@@ -594,64 +684,98 @@ async function launchServer() {
     }
     
     // Check if model is selected
+    console.log('DEBUG: modelPathSelect.value:', modelPathSelect.value);
     if (!modelPathSelect.value.trim()) {
         alert('Please select a model from the dropdown');
         return;
     }
     
-    // Collect all configuration values
-    const config = {
-        modelPath: modelPathSelect.value.trim(),  // Use select value instead of input value
-        ngl: parseInt(nglInput.value) || 0,
-        threads: parseInt(threadsInput.value) || 1,
-        temp: parseFloat(tempInput.value) || 0,
-        topK: parseInt(topKInput.value) || 0,
-        topP: parseFloat(topPInput.value) || 0,
-        repeatPenalty: parseFloat(repeatPenaltyInput.value) || 0,
-        mlock: mlockCheckbox.checked,
-        swaFull: swaFullCheckbox.checked,
-        contextSize: parseInt(contextSizeInput.value) || 1,
-        nCpuMoe: parseInt(nCpuMoeInput.value) || 0,
-        cpuMoe: cpuMoeCheckbox.checked,
-        ctkEnable: ctkEnableCheckbox.checked,
-        contextTokenKey: contextTokenKeySelect.value,
-        contextTokenValue: contextTokenValueSelect.value,
-        fastAttention: fastAttentionCheckbox.checked,
-        jinja: jinjaCheckbox.checked,
-        // New Multi-GPU parameters
-        tensorSplit: tensorSplitInput.value,
-        mainGpu: mainGpuSelect.value,
-        splitMode: splitModeSelect.value,
-        // New Performance parameters
-        batchSize: parseInt(batchSizeInput.value) || 0,
-        ubatchSize: parseInt(ubatchSizeInput.value) || 0,
-        contBatching: contBatchingCheckbox.checked,
-        noMmap: noMmapCheckbox.checked,
-        numa: numaSelect.value,
-        // New Advanced Memory parameters
-        cacheTypeK: cacheTypeKSelect.value,
-        cacheTypeV: cacheTypeVSelect.value,
-        keepModels: parseInt(keepModelsInput.value) || 0,
-        memoryTest: memoryTestCheckbox.checked,
-        // New Server Network parameters
-        serverHost: serverHostInput.value,
-        serverPort: parseInt(serverPortInput.value) || 0,
-        readTimeout: parseInt(readTimeoutInput.value) || 0,
-        writeTimeout: parseInt(writeTimeoutInput.value) || 0,
-        apiKey: apiKeyInput.value,
-        // Draft Model parameters
-        draftModelEnable: draftModelEnableCheckbox.checked,
-        draftModelPath: draftModelPathSelect.value,
-        draftGpuLayers: parseInt(draftGpuLayersInput.value) || 0,
-        draftContextSize: parseInt(draftContextSizeInput.value) || 0,
-        draftMaxTokens: parseInt(draftMaxTokensInput.value) || 0,
-        draftMinTokens: parseInt(draftMinTokensInput.value) || 0,
-        draftPMin: parseFloat(draftPMinInput.value) || 0
-    };
+    console.log('DEBUG: Validation passed, proceeding with launch');
     
-    // Save current values to localStorage (if we have a config ID)
-    if (currentConfigId) {
-        saveCurrentValues(currentConfigId);
+    // Declare config variable outside try-catch blocks for proper scope
+    let config;
+    
+    try {
+        // Collect all configuration values
+        console.log('DEBUG: Starting configuration collection...');
+        config = {
+            modelPath: modelPathSelect.value.trim(),  // Use select value instead of input value
+            ngl: parseInt(nglInput.value) || 0,
+            threads: parseInt(threadsInput.value) || 1,
+        };
+        console.log('DEBUG: Basic config collected:', config);
+        
+        // Add sampling parameters
+        console.log('DEBUG: Adding sampling parameters...');
+        config.temp = parseFloat(tempInput.value) || 0;
+        config.topK = parseInt(topKInput.value) || 0;
+        config.topP = parseFloat(topPInput.value) || 0;
+        config.repeatPenalty = parseFloat(repeatPenaltyInput.value) || 0;
+        console.log('DEBUG: Sampling parameters added');
+        
+        // Add other parameters
+        console.log('DEBUG: Adding other parameters...');
+        config.mlock = mlockCheckbox.checked;
+        config.swaFull = swaFullCheckbox.checked;
+        config.contextSize = parseInt(contextSizeInput.value) || 1;
+        config.nCpuMoe = parseInt(nCpuMoeInput.value) || 0;
+        config.cpuMoe = cpuMoeCheckbox.checked;
+        config.ctkEnable = ctkEnableCheckbox.checked;
+        config.contextTokenKey = contextTokenKeySelect.value;
+        config.contextTokenValue = contextTokenValueSelect.value;
+        config.fastAttention = fastAttentionCheckbox.checked;
+        config.jinja = jinjaCheckbox.checked;
+        
+        // New Multi-GPU parameters
+        console.log('DEBUG: Adding Multi-GPU parameters...');
+        config.tensorSplit = tensorSplitInput.value;
+        config.mainGpu = mainGpuSelect.value;
+        config.splitMode = splitModeSelect.value;
+        
+        // New Performance parameters
+        console.log('DEBUG: Adding Performance parameters...');
+        config.batchSize = parseInt(batchSizeInput.value) || 0;
+        config.ubatchSize = parseInt(ubatchSizeInput.value) || 0;
+        config.contBatching = contBatchingCheckbox.checked;
+        config.noMmap = noMmapCheckbox.checked;
+        config.numa = numaSelect.value;
+        
+        // New Advanced Memory parameters
+        console.log('DEBUG: Adding Advanced Memory parameters...');
+        config.cacheTypeK = cacheTypeKSelect.value;
+        config.cacheTypeV = cacheTypeVSelect.value;
+        config.keepModels = parseInt(keepModelsInput.value) || 0;
+        config.memoryTest = memoryTestCheckbox.checked;
+        
+        // New Server Network parameters
+        console.log('DEBUG: Adding Server Network parameters...');
+        config.serverHost = serverHostInput.value;
+        config.serverPort = parseInt(serverPortInput.value) || 0;
+        config.readTimeout = parseInt(readTimeoutInput.value) || 0;
+        config.writeTimeout = parseInt(writeTimeoutInput.value) || 0;
+        config.apiKey = apiKeyInput.value;
+        
+        // Draft Model parameters
+        console.log('DEBUG: Adding Draft Model parameters...');
+        config.draftModelEnable = draftModelEnableCheckbox.checked;
+        config.draftModelPath = draftModelPathSelect.value;
+        config.draftGpuLayers = parseInt(draftGpuLayersInput.value) || 0;
+        config.draftContextSize = parseInt(draftContextSizeInput.value) || 0;
+        config.draftMaxTokens = parseInt(draftMaxTokensInput.value) || 0;
+        config.draftMinTokens = parseInt(draftMinTokensInput.value) || 0;
+        config.draftPMin = parseFloat(draftPMinInput.value) || 0;
+        
+        console.log('DEBUG: Configuration object completed:', config);
+        
+        // Save current values to localStorage (if we have a config ID)
+        if (currentConfigId) {
+            saveCurrentValues(currentConfigId);
+        }
+        
+    } catch (configError) {
+        console.error('DEBUG: Error collecting configuration:', configError);
+        alert('Error collecting configuration: ' + configError.message);
+        return;
     }
     
     try {
@@ -881,11 +1005,38 @@ function initWebSocket() {
             }
         });
         
+        socket.on('context-update', (data) => {
+            console.log('DEBUG: Received context-update event:', data);
+            // Update context visualization
+            if (data && data.used !== undefined && data.total !== undefined) {
+                try {
+                    updateContextVisualization(data.used, data.total, parseFloat(data.percentage));
+                } catch (error) {
+                    console.log('DEBUG: Error in context update:', error.message);
+                }
+            }
+        });
+        
+        socket.on('context-size', (data) => {
+            console.log('DEBUG: Received context-size event:', data);
+            // Store context size for calculations
+            if (data && data.contextSize !== undefined) {
+                contextSize = data.contextSize;
+                // Show context visualization when we know the context size
+                try {
+                    showContextVisualization();
+                } catch (error) {
+                    console.log('DEBUG: Context visualization not available:', error.message);
+                }
+            }
+        });
+        
         socket.on('server-ended', (data) => {
             console.log('Server process ended:', data.message);
             showOutput('Server process has ended');
             updateStatus(false);
             updateButtonStates(false);
+            try { hideContextVisualization(); } catch(e) {} // Hide context visualization when server ends
         });
         
         socket.on('server-error', (data) => {
@@ -919,6 +1070,7 @@ async function stopServer() {
             showOutput('Server stopped successfully');
             updateStatus(false);
             updateButtonStates(false);
+            try { hideContextVisualization(); } catch(e) {} // Hide context visualization when server stops
             // Close WebSocket connection
             if (socket) {
                 socket.disconnect();
@@ -1214,10 +1366,49 @@ async function init() {
     // Set up event listeners for draft model parameters
     draftModelEnableCheckbox.addEventListener('change', updateDraftModelEnableState);
     
+    // Set up event listener for context size changes
+    contextSizeInput.addEventListener('change', function() {
+        const newContextSize = parseInt(contextSizeInput.value) || 0;
+        if (newContextSize > 0) {
+            contextSize = newContextSize;
+            console.log(`DEBUG: Context size updated to ${contextSize}`);
+        }
+    });
+    
     // Set up event listeners for launching and stopping
-    launchBtn.addEventListener('click', launchServer);
+    launchBtn.addEventListener('click', function() {
+        console.log('DEBUG: Launch button clicked!');
+        launchServer();
+    });
     stopBtn.addEventListener('click', stopServer);
     openServerBtn.addEventListener('click', openServerInBrowser);
+    
+    // Demo context visualization (temporary for testing)
+    const demoContextBtn = document.getElementById('demoContextBtn');
+    if (demoContextBtn) {
+        demoContextBtn.addEventListener('click', function() {
+            // Simulate context progression
+            showContextVisualization();
+            let step = 0;
+            const steps = [
+                { used: 1024, total: 32768, percentage: 3.1 },
+                { used: 8192, total: 32768, percentage: 25.0 },
+                { used: 16384, total: 32768, percentage: 50.0 },
+                { used: 26214, total: 32768, percentage: 80.0 }, // Warning level
+                { used: 31129, total: 32768, percentage: 95.0 }, // Critical level
+            ];
+            
+            const demoInterval = setInterval(() => {
+                if (step < steps.length) {
+                    const stepData = steps[step];
+                    updateContextVisualization(stepData.used, stepData.total, stepData.percentage);
+                    step++;
+                } else {
+                    clearInterval(demoInterval);
+                }
+            }, 1000);
+        });
+    }
     
     // Set up event listeners for preset buttons
     presetHighPerfBtn.addEventListener('click', applyHighPerformanceSingleGPU);

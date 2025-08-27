@@ -150,15 +150,15 @@ async function updateSystemMetricsHistory() {
 // Start periodic system metrics collection
 setInterval(updateSystemMetricsHistory, 1000); // Update every second
 
-// Parse llama.cpp output for performance metrics
+// Parse llama.cpp output for performance metrics and context usage
 function parsePerformanceMetrics(logData) {
     // Debug: Log what we're trying to parse
     if (logData.includes('t/s') || logData.includes('tokens/s') || logData.includes('tok/s')) {
         console.log('DEBUG: Potential speed data found:', logData.trim());
     }
     
-    // Common patterns for token generation speed in llama.cpp output
-    const patterns = [
+    // Parse token generation speed
+    const speedPatterns = [
         // Pattern: "12.34 tokens/s" or "12.34 t/s"
         /([\d.]+)\s*(?:tokens?\/s|t\/s)/i,
         // Pattern: "speed: 12.34 t/s"
@@ -171,7 +171,7 @@ function parsePerformanceMetrics(logData) {
         /eval\s+time\s+=.*?([\d.]+)\s*tokens?\/s/i
     ];
     
-    for (const pattern of patterns) {
+    for (const pattern of speedPatterns) {
         const match = logData.match(pattern);
         if (match) {
             const speed = parseFloat(match[1]);
@@ -186,6 +186,80 @@ function parsePerformanceMetrics(logData) {
             }
         }
     }
+    
+    // Parse context usage information
+    parseContextUsage(logData);
+}
+
+// Parse context usage from llama.cpp output
+function parseContextUsage(logData) {
+    // Common patterns for context usage in llama.cpp output
+    const contextPatterns = [
+        // Pattern: "context_length: 2048 / 4096" or similar
+        /context.*?(\d+)\s*\/\s*(\d+)/i,
+        // Pattern: "used: 1024, total: 2048" 
+        /used:\s*(\d+),?\s*total:\s*(\d+)/i,
+        // Pattern: "tokens: 512/2048"
+        /tokens?:\s*(\d+)\s*\/\s*(\d+)/i,
+        // Pattern: "KV cache: 1024/4096 tokens"
+        /kv\s+cache:\s*(\d+)\s*\/\s*(\d+)/i,
+        // Pattern: "prompt eval count: 123, context size: 4096"
+        /prompt\s+eval\s+count:\s*(\d+).*?context\s+size:\s*(\d+)/i,
+        // Pattern: llama_print_timings output with prompt/eval counts
+        /prompt\s+tokens\s+=\s*(\d+).*?eval\s+count\s+=\s*(\d+)/is
+    ];
+    
+    for (const pattern of contextPatterns) {
+        const match = logData.match(pattern);
+        if (match) {
+            const used = parseInt(match[1]);
+            const total = parseInt(match[2]);
+            
+            // For prompt tokens + eval count pattern, calculate total used
+            let actualUsed = used;
+            if (pattern.toString().includes('prompt.*eval')) {
+                const evalCount = parseInt(match[2]);
+                actualUsed = used + evalCount; // Prompt tokens + generated tokens
+                // We need to get context size from somewhere else or estimate
+                // For now, use a common default and let frontend track actual context size
+                const estimatedTotal = 32768; // Common default, can be overridden by frontend
+                broadcastContextUpdate(actualUsed, estimatedTotal);
+                return;
+            }
+            
+            if (used >= 0 && total > 0 && used <= total) {
+                console.log(`DEBUG: Found context usage: ${used}/${total} tokens`);
+                broadcastContextUpdate(used, total);
+                break;
+            }
+        }
+    }
+    
+    // Also look for context size initialization messages
+    const contextSizePattern = /context\s+size:\s*(\d+)/i;
+    const sizeMatch = logData.match(contextSizePattern);
+    if (sizeMatch) {
+        const contextSize = parseInt(sizeMatch[1]);
+        console.log(`DEBUG: Found context size: ${contextSize}`);
+        // Broadcast context size info
+        connectedClients.forEach(client => {
+            client.emit('context-size', { contextSize: contextSize });
+        });
+    }
+}
+
+// Broadcast context usage updates to all connected clients
+function broadcastContextUpdate(used, total) {
+    const percentage = (used / total) * 100;
+    console.log(`DEBUG: Broadcasting context update: ${used}/${total} (${percentage.toFixed(1)}%)`);
+    
+    connectedClients.forEach(client => {
+        client.emit('context-update', { 
+            used: used,
+            total: total,
+            percentage: percentage.toFixed(1)
+        });
+    });
 }
 
 // Function to recursively find GGUF files
