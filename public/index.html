@@ -39,30 +39,39 @@
                 </dialog>
                 <div id="configList" class="config-list"></div>
                 
-                <!-- System Metrics Graphs (Bottom of Left Panel) -->
+                <!-- Enhanced System Metrics (Bottom of Left Panel) -->
                 <div class="system-metrics-container">
                     <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 14px; color: #666;">System Resources</h3>
-                    <div class="metrics-graphs">
+                    
+                    <!-- CPU Metrics with Temperature -->
+                    <div class="cpu-metrics-section">
                         <div class="metric-graph">
-                            <div class="graph-title">CPU Usage</div>
+                            <div class="graph-title">CPU Usage <span id="cpuTempIndicator" class="temp-indicator"></span></div>
                             <canvas id="cpuGraph" class="graph-canvas"></canvas>
                             <div class="metric-value" id="cpuValue">0%</div>
                         </div>
-                        <div class="metric-graph">
-                            <div class="graph-title">RAM Usage</div>
-                            <canvas id="ramGraph" class="graph-canvas"></canvas>
-                            <div class="metric-value" id="ramValue">0%</div>
+                        <div id="cpuCoresBars" class="cpu-cores-container">
+                            <!-- Per-core usage bars will be dynamically generated here -->
                         </div>
-                        <div class="metric-graph">
-                            <div class="graph-title">GPU Usage</div>
-                            <canvas id="gpuGraph" class="graph-canvas"></canvas>
-                            <div class="metric-value" id="gpuValue">0%</div>
-                        </div>
-                        <div class="metric-graph">
-                            <div class="graph-title">VRAM Usage</div>
-                            <canvas id="vramGraph" class="graph-canvas"></canvas>
-                            <div class="metric-value" id="vramValue">0%</div>
-                        </div>
+                    </div>
+                    
+                    <!-- RAM Usage -->
+                    <div class="metric-graph">
+                        <div class="graph-title">RAM Usage</div>
+                        <canvas id="ramGraph" class="graph-canvas"></canvas>
+                        <div class="metric-value" id="ramValue">0%</div>
+                    </div>
+                    
+                    <!-- Enhanced GPU Metrics -->
+                    <div id="gpuMetricsContainer" class="gpu-metrics-container">
+                        <!-- Per-GPU cards will be dynamically generated here -->
+                    </div>
+                    
+                    <!-- Legacy VRAM for compatibility -->
+                    <div class="metric-graph">
+                        <div class="graph-title">Total VRAM</div>
+                        <canvas id="vramGraph" class="graph-canvas"></canvas>
+                        <div class="metric-value" id="vramValue">0%</div>
                     </div>
                 </div>
             </div>

@@ -1764,18 +1764,137 @@ function updateCharts() {
     drawVramChart();
 }
 
+// Helper function to update temperature indicators
+function updateTemperatureIndicator(elementId, temperature) {
+    const indicator = document.getElementById(elementId);
+    if (!indicator) return;
+    
+    let tempClass = 'normal';
+    let tempText = '';
+    
+    if (temperature > 0) {
+        tempText = `${Math.round(temperature)}°C`;
+        if (temperature > 80) {
+            tempClass = 'hot';
+        } else if (temperature > 65) {
+            tempClass = 'warm';
+        } else {
+            tempClass = 'normal';
+        }
+    }
+    
+    indicator.className = `temp-indicator ${tempClass}`;
+    indicator.textContent = tempText;
+}
+
+// Helper function to update CPU cores display
+function updateCPUCores(cores) {
+    const container = document.getElementById('cpuCoresBars');
+    if (!container || !cores || cores.length === 0) return;
+    
+    // Create cores grid if it doesn't exist
+    let coresGrid = container.querySelector('.cpu-cores-grid');
+    if (!coresGrid) {
+        coresGrid = document.createElement('div');
+        coresGrid.className = 'cpu-cores-grid';
+        container.appendChild(coresGrid);
+    }
+    
+    // Clear existing cores
+    coresGrid.innerHTML = '';
+    
+    // Create core bars
+    cores.forEach((core, index) => {
+        const coreBar = document.createElement('div');
+        coreBar.className = 'cpu-core-bar';
+        
+        coreBar.innerHTML = `
+            <div class="cpu-core-label">C${index}</div>
+            <div class="cpu-core-progress">
+                <div class="cpu-core-fill" style="height: ${Math.min(core.usage || 0, 100)}%"></div>
+            </div>
+        `;
+        
+        coresGrid.appendChild(coreBar);
+    });
+}
+
+// Helper function to update GPU metrics display
+function updateGPUMetrics(gpus) {
+    const container = document.getElementById('gpuMetricsContainer');
+    if (!container) return;
+    
+    // Clear existing GPU cards
+    container.innerHTML = '';
+    
+    // Create GPU cards
+    gpus.forEach((gpu, index) => {
+        const gpuCard = document.createElement('div');
+        gpuCard.className = 'gpu-card';
+        
+        const tempClass = gpu.temperature > 80 ? 'hot' : gpu.temperature > 65 ? 'warm' : 'normal';
+        const thermalWarning = gpu.thermalThrottling ? ' ⚠️' : '';
+        
+        gpuCard.innerHTML = `
+            <div class="gpu-header">
+                <div class="gpu-name">GPU ${index}: ${gpu.name || 'Unknown'}</div>
+                <div class="gpu-temp ${tempClass}">${Math.round(gpu.temperature || 0)}°C${thermalWarning}</div>
+            </div>
+            <div class="gpu-metrics-grid">
+                <div class="gpu-metric-item">
+                    <div class="gpu-metric-label">Utilization</div>
+                    <div class="gpu-metric-value">${Math.round(gpu.utilizationGpu || 0)}%</div>
+                    <div class="gpu-progress-bar">
+                        <div class="gpu-progress-fill" style="width: ${gpu.utilizationGpu || 0}%"></div>
+                    </div>
+                </div>
+                <div class="gpu-metric-item">
+                    <div class="gpu-metric-label">Memory</div>
+                    <div class="gpu-metric-value">${Math.round(gpu.memoryUsage || 0)}%</div>
+                    <div class="gpu-progress-bar">
+                        <div class="gpu-progress-fill" style="width: ${gpu.memoryUsage || 0}%"></div>
+                    </div>
+                </div>
+                <div class="gpu-metric-item">
+                    <div class="gpu-metric-label">Power</div>
+                    <div class="gpu-metric-value">${Math.round(gpu.powerDraw || 0)}W</div>
+                    <div class="gpu-progress-bar">
+                        <div class="gpu-progress-fill" style="width: ${gpu.powerUsage || 0}%"></div>
+                    </div>
+                </div>
+                <div class="gpu-metric-item">
+                    <div class="gpu-metric-label">Memory BW</div>
+                    <div class="gpu-metric-value">${Math.round(gpu.utilizationMemory || 0)}%</div>
+                    <div class="gpu-progress-bar">
+                        <div class="gpu-progress-fill" style="width: ${gpu.utilizationMemory || 0}%"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(gpuCard);
+    });
+}
+
 // Fetch system metrics and update charts
 async function fetchSystemMetrics() {
     try {
         const response = await fetch('/metrics');
         const data = await response.json();
         
+        // Update CPU metrics with temperature and cores
         if (data.cpu !== undefined) {
             chartData.cpu.push(data.cpu);
             if (chartData.cpu.length > 50) {
                 chartData.cpu.shift(); // Remove oldest point
             }
             document.getElementById('cpuValue').textContent = `${Math.round(data.cpu)}%`;
+            
+            // Update CPU temperature indicator
+            updateTemperatureIndicator('cpuTempIndicator', data.cpuTemperature);
+            
+            // Update CPU cores display
+            updateCPUCores(data.cpuCores || []);
         }
         
         if (data.ram !== undefined) {
@@ -1786,12 +1905,9 @@ async function fetchSystemMetrics() {
             document.getElementById('ramValue').textContent = `${Math.round(data.ram)}%`;
         }
         
-        if (data.gpu !== undefined) {
-            chartData.gpu.push(data.gpu);
-            if (chartData.gpu.length > 50) {
-                chartData.gpu.shift(); // Remove oldest point
-            }
-            document.getElementById('gpuValue').textContent = `${Math.round(data.gpu)}%`;
+        // Update enhanced GPU metrics
+        if (data.gpus && data.gpus.length > 0) {
+            updateGPUMetrics(data.gpus);
         }
         
         if (data.vram !== undefined) {

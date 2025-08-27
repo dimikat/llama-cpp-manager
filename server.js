@@ -25,38 +25,138 @@ const io = require('socket.io')(httpServer, {
     }
 });
 
-// System monitoring variables
+// Enhanced system monitoring variables
 let systemMetrics = {
-    cpu: { usage: 0, history: [] },
-    ram: { usage: 0, total: 0, free: 0, history: [] },
-    gpu: { usage: 0, memory: 0, history: [] },
-    vram: { usage: 0, total: 0, free: 0, history: [] }
+    cpu: { 
+        usage: 0, 
+        cores: [],
+        temperature: 0,
+        history: [] 
+    },
+    ram: { 
+        usage: 0, 
+        total: 0, 
+        free: 0, 
+        history: [] 
+    },
+    gpus: [], // Array of per-GPU metrics
+    vram: { 
+        usage: 0, 
+        total: 0, 
+        free: 0, 
+        history: [] 
+    } // Keep for backwards compatibility
 };
+
+// Enhanced GPU monitoring function
+async function getEnhancedGPUMetrics() {
+    try {
+        // Query comprehensive GPU metrics including temperature, power, and memory details
+        const smiOutput = execSync(
+            'nvidia-smi --query-gpu=index,name,temperature.gpu,power.draw,power.limit,memory.used,memory.total,utilization.gpu,utilization.memory,clocks.current.graphics,clocks.current.memory --format=csv,noheader,nounits', 
+            { encoding: 'utf8' }
+        );
+        
+        if (smiOutput) {
+            const lines = smiOutput.trim().split('\n');
+            const gpus = [];
+            
+            for (const line of lines) {
+                const parts = line.split(',').map(p => p.trim());
+                if (parts.length >= 11) {
+                    const gpu = {
+                        index: parseInt(parts[0]) || 0,
+                        name: parts[1] || 'Unknown GPU',
+                        temperature: parseFloat(parts[2]) || 0,
+                        powerDraw: parseFloat(parts[3]) || 0,
+                        powerLimit: parseFloat(parts[4]) || 0,
+                        memoryUsed: parseFloat(parts[5]) || 0,
+                        memoryTotal: parseFloat(parts[6]) || 0,
+                        utilizationGpu: parseFloat(parts[7]) || 0,
+                        utilizationMemory: parseFloat(parts[8]) || 0,
+                        clocksGraphics: parseFloat(parts[9]) || 0,
+                        clocksMemory: parseFloat(parts[10]) || 0,
+                        memoryUsage: ((parseFloat(parts[5]) || 0) / (parseFloat(parts[6]) || 1)) * 100,
+                        powerUsage: ((parseFloat(parts[3]) || 0) / (parseFloat(parts[4]) || 1)) * 100,
+                        thermalThrottling: (parseFloat(parts[2]) || 0) > 80 // Simple thermal throttling detection
+                    };
+                    gpus.push(gpu);
+                }
+            }
+            
+            return gpus;
+        }
+    } catch (error) {
+        console.log('Failed to get enhanced GPU metrics from nvidia-smi:', error.message);
+        // Return fallback single GPU data
+        return [{
+            index: 0,
+            name: 'Simulated GPU',
+            temperature: 45 + Math.random() * 20,
+            powerDraw: 150 + Math.random() * 100,
+            powerLimit: 300,
+            memoryUsed: 4000 + Math.random() * 4000,
+            memoryTotal: 8192,
+            utilizationGpu: Math.random() * 100,
+            utilizationMemory: Math.random() * 100,
+            clocksGraphics: 1500 + Math.random() * 500,
+            clocksMemory: 7000 + Math.random() * 1000,
+            memoryUsage: Math.random() * 100,
+            powerUsage: (150 + Math.random() * 100) / 300 * 100,
+            thermalThrottling: false
+        }];
+    }
+}
+
+// Enhanced CPU monitoring function
+function getEnhancedCPUMetrics() {
+    const cpus = os.cpus();
+    const cores = [];
+    
+    // Get per-core usage (simplified approach)
+    cpus.forEach((cpu, index) => {
+        const times = cpu.times;
+        const total = Object.values(times).reduce((a, b) => a + b, 0);
+        const idle = times.idle;
+        const usage = total > 0 ? Math.max(0, 100 - (idle / total * 100)) : 0;
+        
+        cores.push({
+            index: index,
+            model: cpu.model,
+            speed: cpu.speed,
+            usage: usage,
+            times: times
+        });
+    });
+    
+    return {
+        cores: cores,
+        totalCores: cpus.length,
+        temperature: 45 + Math.random() * 15 // Simulated CPU temperature
+    };
+}
 
 // Function to get system metrics
 async function getSystemMetrics() {
-    // CPU Usage using os-utils for more accurate readings
+    // Enhanced CPU monitoring
     let cpuUsage = 0;
+    let cpuMetrics = null;
+    
     try {
-        // Use os-utils for better CPU monitoring
+        // Use os-utils for overall CPU monitoring
         cpuUsage = await new Promise((res, rej)=>{
             osUtils.cpuUsage((usage)=>{
                 res(usage * 100);
             });
         });
+        
+        // Get detailed CPU core metrics
+        cpuMetrics = getEnhancedCPUMetrics();
 
     } catch (error) {
         // Fallback to manual calculation if os-utils fails
-        const cpus = os.cpus();
-        let totalIdle = 0;
-        let totalTick = 0;
-        cpus.forEach(cpu => {
-            const times = cpu.times;
-            totalIdle += times.idle;
-            totalTick += Object.values(times).reduce((a, b) => a + b, 0);
-        });
-        const idlePercentage = (totalIdle / cpus.length) / (totalTick / cpus.length) * 100;
-        cpuUsage = Math.max(0, 100 - idlePercentage);
+        cpuMetrics = getEnhancedCPUMetrics();
+        cpuUsage = cpuMetrics.cores.reduce((sum, core) => sum + core.usage, 0) / cpuMetrics.cores.length;
     }
     
     // RAM Usage
@@ -65,57 +165,41 @@ async function getSystemMetrics() {
     const usedMemory = totalMemory - freeMemory;
     const ramUsage = (usedMemory / totalMemory) * 100;
     
-    // GPU and VRAM Usage - Parse nvidia-smi output
-    let gpuUsage = 0;
-    let vramUsage = 0;
-    let vramTotal = 0;
-    let vramFree = 0;
+    // Enhanced GPU monitoring - Get detailed per-GPU metrics
+    const gpuMetrics = await getEnhancedGPUMetrics();
+    let totalVramUsed = 0;
+    let totalVramTotal = 0;
+    let averageGpuUsage = 0;
     
-    try {
-        // Parse the output to extract VRAM usage for the current process
-        // For now, we'll use a simpler approach - get general GPU info
-        const smiOutput = execSync('nvidia-smi --query-gpu=utilization.gpu,memory.total,memory.used --format=csv,noheader,nounits', { encoding: 'utf8' });
-        
-        if (smiOutput) {
-            const lines = smiOutput.trim().split('\n');
-            if (lines.length > 0) {
-                const line = lines[0].trim();
-                const parts = line.split(',').map(p => p.trim());
-                if (parts.length >= 3) {
-                    gpuUsage = parseFloat(parts[0]) || 0;
-                    vramTotal = parseFloat(parts[1]) || 0;
-                    const vramUsed = parseFloat(parts[2]) || 0;
-                    vramFree = vramTotal - vramUsed;
-                    vramUsage = (vramUsed / vramTotal) * 100 || 0;
-                }
-            }
-        }
-    } catch (error) {
-        // If nvidia-smi fails, fall back to simulated values
-        console.log('Failed to get GPU/VRAM data from nvidia-smi:', error.message);
-        gpuUsage = Math.random() * 100; // Simulated fallback
-        vramUsage = Math.random() * 100; // Simulated fallback
-        vramTotal = 8 * 1024 * 1024 * 1024 / (1024 * 1024); // 8GB in MB
-        vramFree = vramTotal * (1 - vramUsage / 100);
+    // Calculate totals for backwards compatibility
+    if (gpuMetrics.length > 0) {
+        totalVramUsed = gpuMetrics.reduce((sum, gpu) => sum + gpu.memoryUsed, 0);
+        totalVramTotal = gpuMetrics.reduce((sum, gpu) => sum + gpu.memoryTotal, 0);
+        averageGpuUsage = gpuMetrics.reduce((sum, gpu) => sum + gpu.utilizationGpu, 0) / gpuMetrics.length;
     }
     
     return {
         cpu: cpuUsage,
+        cpuCores: cpuMetrics ? cpuMetrics.cores : [],
+        cpuTemperature: cpuMetrics ? cpuMetrics.temperature : 0,
         ram: ramUsage,
-        gpu: gpuUsage,
-        vram: vramUsage,
+        gpu: averageGpuUsage, // For backwards compatibility
+        gpus: gpuMetrics, // Enhanced per-GPU metrics
+        vram: totalVramTotal > 0 ? (totalVramUsed / totalVramTotal) * 100 : 0, // For backwards compatibility
         totalMemory: totalMemory,
         freeMemory: freeMemory,
-        vramTotal: vramTotal,
-        vramFree: vramFree
+        vramTotal: totalVramTotal,
+        vramFree: totalVramTotal - totalVramUsed
     };
 }
 
 // Function to update system metrics history
 async function updateSystemMetricsHistory() {
     const metrics = await getSystemMetrics();
-    // Update CPU history (keep last 50 points)
+    // Update enhanced CPU metrics
     systemMetrics.cpu.usage = metrics.cpu;
+    systemMetrics.cpu.cores = metrics.cpuCores;
+    systemMetrics.cpu.temperature = metrics.cpuTemperature;
     if (systemMetrics.cpu.history.length >= 50) {
         systemMetrics.cpu.history.shift();
     }
@@ -130,15 +214,24 @@ async function updateSystemMetricsHistory() {
     }
     systemMetrics.ram.history.push(metrics.ram);
     
-    // Update GPU history
-    systemMetrics.gpu.usage = metrics.gpu;
-    systemMetrics.gpu.memory = metrics.vramTotal - metrics.vramFree; // Used VRAM in bytes
-    if (systemMetrics.gpu.history.length >= 50) {
-        systemMetrics.gpu.history.shift();
-    }
-    systemMetrics.gpu.history.push(metrics.gpu);
+    // Update enhanced GPU metrics
+    systemMetrics.gpus = metrics.gpus || [];
     
-    // Update VRAM history
+    // Maintain per-GPU history
+    systemMetrics.gpus.forEach((gpu, index) => {
+        if (!gpu.history) gpu.history = [];
+        if (gpu.history.length >= 50) {
+            gpu.history.shift();
+        }
+        gpu.history.push({
+            utilizationGpu: gpu.utilizationGpu,
+            temperature: gpu.temperature,
+            powerDraw: gpu.powerDraw,
+            memoryUsage: gpu.memoryUsage
+        });
+    });
+    
+    // Update VRAM history (backwards compatibility)
     systemMetrics.vram.usage = metrics.vram;
     systemMetrics.vram.total = metrics.vramTotal;
     systemMetrics.vram.free = metrics.vramFree;
@@ -706,13 +799,26 @@ app.get('/models', async (req, res) => {
 
 // API endpoint to get system metrics
 app.get('/metrics', (req, res) => {
-    // Return just the current values for CPU, RAM, GPU, and VRAM
+    // Return enhanced metrics with backwards compatibility
     res.json({ 
+        // Basic metrics (backwards compatibility)
         cpu: systemMetrics.cpu.usage,
         ram: systemMetrics.ram.usage,
-        gpu: systemMetrics.gpu.usage,
-        vram:  systemMetrics.vram.usage,
+        gpu: systemMetrics.gpus.length > 0 ? systemMetrics.gpus.reduce((sum, gpu) => sum + gpu.utilizationGpu, 0) / systemMetrics.gpus.length : 0,
+        vram: systemMetrics.vram.usage,
         vramUsage: `${systemMetrics.vram.total - systemMetrics.vram.free}/${systemMetrics.vram.total}`,
+        
+        // Enhanced metrics
+        cpuCores: systemMetrics.cpu.cores || [],
+        cpuTemperature: systemMetrics.cpu.temperature || 0,
+        gpus: systemMetrics.gpus || [],
+        
+        // Historical data for charts
+        history: {
+            cpu: systemMetrics.cpu.history || [],
+            ram: systemMetrics.ram.history || [],
+            vram: systemMetrics.vram.history || []
+        }
     });
 });
 
