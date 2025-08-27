@@ -619,14 +619,20 @@
                                 </div>
                             </div>
                             <div class="context-details">
-                                <span class="turns-estimate" id="turnsEstimate">Estimated turns remaining: ∞</span>
-                                <span class="context-warning" id="contextWarning"></span>
+                                <div class="context-warning" id="contextWarning" style="display: none;">
+                                    ⚠️ Context usage is high - consider using a larger context size or clearing conversation history
+                                </div>
+                                <div class="turns-estimate" id="turnsEstimate" style="display: none;">
+                                    Estimated remaining turns: <span class="turns-count">--</span>
+                                </div>
                             </div>
                         </div>
                         
                         <!-- Demo Context Button (temporary for testing) -->
                         <div style="margin-bottom: 10px;">
-                            <button id="demoContextBtn" class="btn btn-outline-secondary" style="font-size: 10px; padding: 4px 8px;">Demo Context</button>
+                            <button id="testContextBtn" class="btn btn-secondary" style="font-size: 12px; padding: 4px 8px;">
+                                🧪 Test Context Visualization
+                            </button>
                         </div>
                         
                         <div id="modelProcessInfo" class="process-info">No process information</div>

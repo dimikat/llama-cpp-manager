@@ -63,6 +63,7 @@ const draftPMinInput = document.getElementById('draftPMin');
 const launchBtn = document.getElementById('launchBtn');
 const stopBtn = document.getElementById('stopBtn');
 const openServerBtn = document.getElementById('openServerBtn');
+const testContextBtn = document.getElementById('testContextBtn');
 const modelStatusMessage = document.getElementById('modelStatusMessage');
 const modelProcessInfo = document.getElementById('modelProcessInfo');
 const modelOutput = document.getElementById('modelOutput');
@@ -266,9 +267,15 @@ function updateTokenSpeed(speed) {
 
 // Context visualization functions
 function showContextVisualization() {
+    console.log('DEBUG: showContextVisualization called');
     const contextViz = document.getElementById('contextVisualization');
     if (contextViz) {
         contextViz.style.display = 'block';
+        console.log('DEBUG: Context visualization shown');
+        // Initialize with default values
+        updateContextVisualization(0, 0, 0);
+    } else {
+        console.log('DEBUG: contextVisualization element not found');
     }
 }
 
@@ -301,30 +308,40 @@ function updateContextVisualization(used, total, percentage) {
     
     // Update styling based on usage level
     contextUsed.classList.remove('warning', 'critical');
-    contextWarning.classList.remove('critical');
-    contextWarning.textContent = '';
+    if (contextWarning) {
+        contextWarning.classList.remove('critical');
+        contextWarning.style.display = 'none';
+    }
     
     if (percentage >= 95) {
         contextUsed.classList.add('critical');
-        contextWarning.classList.add('critical');
-        contextWarning.textContent = 'Context Almost Full';
+        if (contextWarning) {
+            contextWarning.classList.add('critical');
+            contextWarning.style.display = 'block';
+            contextWarning.innerHTML = '🚨 Context Almost Full - Consider increasing context size or clearing history';
+        }
     } else if (percentage >= 80) {
         contextUsed.classList.add('warning');
-        contextWarning.textContent = 'Context Warning';
+        if (contextWarning) {
+            contextWarning.style.display = 'block';
+            contextWarning.innerHTML = '⚠️ Context usage is high - consider using a larger context size or clearing conversation history';
+        }
     }
     
     // Calculate estimated turns remaining
     if (turnsEstimate) {
+        turnsEstimate.style.display = 'block';
         const remaining = total - used;
         const averageTokensPerTurn = estimateTokensPerTurn(used, total);
+        const turnsCountSpan = turnsEstimate.querySelector('.turns-count');
         
         if (remaining <= 0) {
-            turnsEstimate.textContent = 'Estimated turns remaining: 0';
+            if (turnsCountSpan) turnsCountSpan.textContent = '0';
         } else if (averageTokensPerTurn > 0) {
             const estimatedTurns = Math.floor(remaining / averageTokensPerTurn);
-            turnsEstimate.textContent = `Estimated turns remaining: ${estimatedTurns}`;
+            if (turnsCountSpan) turnsCountSpan.textContent = estimatedTurns.toString();
         } else {
-            turnsEstimate.textContent = 'Estimated turns remaining: ∞';
+            if (turnsCountSpan) turnsCountSpan.textContent = '∞';
         }
     }
     } catch (error) {
@@ -965,6 +982,7 @@ async function launchServer() {
             showOutput('Server started successfully');
             updateStatus(true);
             updateButtonStates(true);
+            showContextVisualization(); // Show context visualization when server starts
             // Initialize WebSocket connection for log streaming
             initWebSocket();
         } else {
@@ -1407,6 +1425,15 @@ async function init() {
                     clearInterval(demoInterval);
                 }
             }, 1000);
+        });
+    }
+    
+    // Test context visualization button
+    if (testContextBtn) {
+        testContextBtn.addEventListener('click', function() {
+            // Simple test - show context visualization with sample data
+            showContextVisualization();
+            updateContextVisualization(12450, 16384, 76.0); // Example: 76% usage
         });
     }
     

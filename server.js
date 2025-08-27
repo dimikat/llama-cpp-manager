@@ -191,46 +191,100 @@ function parsePerformanceMetrics(logData) {
     parseContextUsage(logData);
 }
 
+// Store the detected context size for later use
+let detectedContextSize = 16384; // Default fallback
+
 // Parse context usage from llama.cpp output
 function parseContextUsage(logData) {
-    // Common patterns for context usage in llama.cpp output
+    // Debug: Log all output to help identify patterns
+    if (logData && logData.trim()) {
+        console.log('DEBUG: Raw llama.cpp output for context parsing:', JSON.stringify(logData.trim()));
+    }
+    
+    // Enhanced patterns for context usage in llama.cpp output
     const contextPatterns = [
-        // Pattern: "context_length: 2048 / 4096" or similar
+        // Modern slot-based patterns (common in recent llama.cpp) - these are the key ones!
+        /slot.*?n_past\s*=\s*(\d+).*?n_ctx_slot\s*=\s*(\d+)/is,
+        /slot.*?n_ctx_slot\s*=\s*(\d+).*?n_past\s*=\s*(\d+)/is, 
+        /slot.*?n_past\s*=\s*(\d+).*?truncated\s*=\s*\d+/i, // For release messages, we'll use stored context size
+        
+        // Request completion patterns
+        /generated\s+(\d+)\s+tokens.*?context\s*(?:size|length)?\s*(?:of\s*)?(\d+)/is,
+        /completion.*?(\d+)\s*\/\s*(\d+)\s+tokens/i,
+        
+        // Traditional patterns
+        /n_ctx\s*=\s*(\d+).*?n_past\s*=\s*(\d+)/is,
+        /context\s+size:\s*(\d+).*?tokens\s+processed:\s*(\d+)/is,
+        /ctx_size:\s*(\d+).*?n_past:\s*(\d+)/is,
+        
+        // Legacy patterns
         /context.*?(\d+)\s*\/\s*(\d+)/i,
-        // Pattern: "used: 1024, total: 2048" 
         /used:\s*(\d+),?\s*total:\s*(\d+)/i,
-        // Pattern: "tokens: 512/2048"
         /tokens?:\s*(\d+)\s*\/\s*(\d+)/i,
-        // Pattern: "KV cache: 1024/4096 tokens"
         /kv\s+cache:\s*(\d+)\s*\/\s*(\d+)/i,
-        // Pattern: "prompt eval count: 123, context size: 4096"
         /prompt\s+eval\s+count:\s*(\d+).*?context\s+size:\s*(\d+)/i,
-        // Pattern: llama_print_timings output with prompt/eval counts
-        /prompt\s+tokens\s+=\s*(\d+).*?eval\s+count\s+=\s*(\d+)/is
+        /prompt\s+tokens\s+=\s*(\d+).*?eval\s+count\s+=\s*(\d+)/is,
+        
+        // Additional modern patterns  
+        /n_tokens\s*=\s*(\d+).*?n_ctx\s*=\s*(\d+)/is,
+        /processed\s+(\d+)\s*\/\s*(\d+)\s+tokens/i,
+        
+        // Context size detection (for initialization)
+        /n_ctx\s*=\s*(\d+)/i  // Just context size, we'll use 0 for initial usage
     ];
     
-    for (const pattern of contextPatterns) {
+    for (let i = 0; i < contextPatterns.length; i++) {
+        const pattern = contextPatterns[i];
         const match = logData.match(pattern);
         if (match) {
-            const used = parseInt(match[1]);
-            const total = parseInt(match[2]);
+            console.log(`DEBUG: Pattern ${i} matched:`, pattern.toString(), 'Groups:', match);
             
-            // For prompt tokens + eval count pattern, calculate total used
-            let actualUsed = used;
+            let used, total;
+            
+            // Handle different pattern formats
+            if (i === 0) { // slot n_past = X n_ctx_slot = Y
+                used = parseInt(match[1]);  // n_past
+                total = parseInt(match[2]); // n_ctx_slot
+                detectedContextSize = total; // Store for later use
+            } else if (i === 1) { // slot n_ctx_slot = Y n_past = X
+                total = parseInt(match[1]); // n_ctx_slot
+                used = parseInt(match[2]);  // n_past
+                detectedContextSize = total; // Store for later use
+            } else if (i === 2) { // slot n_past = X truncated = 0 (use stored context size)
+                used = parseInt(match[1]);  // n_past
+                total = detectedContextSize; // Use stored context size
+            } else if (i <= 4) { // Completion patterns: used first, total second
+                used = parseInt(match[1]);
+                total = parseInt(match[2]);
+            } else if (i <= 7) { // Traditional patterns: total first, used second
+                total = parseInt(match[1]); // n_ctx or context_size
+                used = parseInt(match[2]);  // n_past or tokens_processed
+            } else if (i === contextPatterns.length - 1) { // Context size only pattern
+                total = parseInt(match[1]); // n_ctx
+                used = 0; // No usage yet - this is initialization
+            } else {
+                // Legacy patterns - used first, total second
+                used = parseInt(match[1]);
+                total = parseInt(match[2]);
+            }
+            
+            // Special handling for prompt + eval pattern
             if (pattern.toString().includes('prompt.*eval')) {
                 const evalCount = parseInt(match[2]);
-                actualUsed = used + evalCount; // Prompt tokens + generated tokens
-                // We need to get context size from somewhere else or estimate
-                // For now, use a common default and let frontend track actual context size
-                const estimatedTotal = 32768; // Common default, can be overridden by frontend
-                broadcastContextUpdate(actualUsed, estimatedTotal);
+                used = used + evalCount; // Prompt tokens + generated tokens
+                // Use configured context size or estimate
+                total = 32768; // Will be overridden by frontend if context size is known
+                console.log(`DEBUG: Calculated prompt+eval usage: ${used}/${total} tokens`);
+                broadcastContextUpdate(used, total);
                 return;
             }
             
             if (used >= 0 && total > 0 && used <= total) {
-                console.log(`DEBUG: Found context usage: ${used}/${total} tokens`);
+                console.log(`DEBUG: Found context usage: ${used}/${total} tokens (pattern ${i})`);
                 broadcastContextUpdate(used, total);
-                break;
+                return;
+            } else {
+                console.log(`DEBUG: Invalid values from pattern ${i}: used=${used}, total=${total}`);
             }
         }
     }
@@ -360,6 +414,11 @@ app.post('/start', (req, res) => {
                 const logData = data.toString();
                 console.log('STDOUT:', logData);
                 
+                // DEBUG: Always log all output to help identify patterns
+                if (logData.trim()) {
+                    console.log('DEBUG: ALL llama.cpp stdout:', JSON.stringify(logData.trim()));
+                }
+                
                 // Parse for performance metrics
                 parsePerformanceMetrics(logData);
                 
@@ -374,6 +433,15 @@ app.post('/start', (req, res) => {
             runningProcess.stderr.on('data', (data) => {
                 const logData = data.toString();
                 console.log('STDERR:', logData);
+                
+                // DEBUG: Also log stderr output for context patterns
+                if (logData.trim()) {
+                    console.log('DEBUG: ALL llama.cpp stderr:', JSON.stringify(logData.trim()));
+                }
+                
+                // Parse stderr output for performance and context metrics too
+                parsePerformanceMetrics(logData);
+                
                 // Broadcast to all connected clients
                 connectedClients.forEach(client => {
                     client.emit('log-stream', { type: 'stderr', data: logData });
