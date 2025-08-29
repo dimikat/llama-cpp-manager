@@ -19,9 +19,9 @@
             </button>
         </div>
         
-        <div class="main-layout">
+        <div class="main-layout" style="position: relative !important; width: 100% !important; height: 100% !important; min-width: 900px !important;">
             <!-- Configuration Panel (Left) -->
-            <div class="config-panel">
+            <div class="config-panel" style="position: absolute !important; left: 10px !important; top: 0 !important; bottom: 0 !important; width: 270px !important; background-color: rgba(255, 0, 0, 0.1) !important; border: 2px solid red !important; z-index: 100 !important;">
                 <div class="config-header">
                     <h2>Configurations</h2>
                     <button id="addConfigBtn" class="btn btn-primary">+ Add</button>
@@ -38,46 +38,10 @@
                     </div>
                 </dialog>
                 <div id="configList" class="config-list"></div>
-                
-                <!-- Enhanced System Metrics (Bottom of Left Panel) -->
-                <div class="system-metrics-container">
-                    <h3 style="margin-top: 20px; margin-bottom: 10px; font-size: 14px; color: #666;">System Resources</h3>
-                    
-                    <!-- CPU Metrics with Temperature -->
-                    <div class="cpu-metrics-section">
-                        <div class="metric-graph">
-                            <div class="graph-title">CPU Usage <span id="cpuTempIndicator" class="temp-indicator"></span></div>
-                            <canvas id="cpuGraph" class="graph-canvas"></canvas>
-                            <div class="metric-value" id="cpuValue">0%</div>
-                        </div>
-                        <div id="cpuCoresBars" class="cpu-cores-container">
-                            <!-- Per-core usage bars will be dynamically generated here -->
-                        </div>
-                    </div>
-                    
-                    <!-- RAM Usage -->
-                    <div class="metric-graph">
-                        <div class="graph-title">RAM Usage</div>
-                        <canvas id="ramGraph" class="graph-canvas"></canvas>
-                        <div class="metric-value" id="ramValue">0%</div>
-                    </div>
-                    
-                    <!-- Enhanced GPU Metrics -->
-                    <div id="gpuMetricsContainer" class="gpu-metrics-container">
-                        <!-- Per-GPU cards will be dynamically generated here -->
-                    </div>
-                    
-                    <!-- Legacy VRAM for compatibility -->
-                    <div class="metric-graph">
-                        <div class="graph-title">Total VRAM</div>
-                        <canvas id="vramGraph" class="graph-canvas"></canvas>
-                        <div class="metric-value" id="vramValue">0%</div>
-                    </div>
-                </div>
             </div>
 
-            <!-- Main Content (Right) -->
-            <div class="main-content">
+            <!-- Main Content (Middle) -->
+            <div class="main-content" style="position: absolute !important; left: 290px !important; right: 330px !important; top: 0 !important; bottom: 0 !important; background-color: rgba(0, 255, 0, 0.1) !important; border: 2px solid green !important; z-index: 100 !important;">
                 <div class="input-section">
                     <!-- Configuration Tabs -->
                     <div class="config-tabs">
@@ -650,6 +614,46 @@
                     <div class="model-output-container">
                         <h3>Model Output</h3>
                         <div id="modelOutput" class="output-content">No output yet...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Resources Panel (Right) -->
+            <div class="system-panel" style="position: absolute !important; right: 10px !important; top: 0 !important; bottom: 0 !important; width: 310px !important; background-color: rgba(0, 0, 255, 0.1) !important; border: 2px solid blue !important; z-index: 100 !important;">
+                <div class="system-panel-header">
+                    <h2>System Resources</h2>
+                </div>
+                
+                <div class="system-metrics-container">
+                    <!-- CPU Metrics with Temperature -->
+                    <div class="cpu-metrics-section">
+                        <div class="metric-graph">
+                            <div class="graph-title">CPU Usage <span id="cpuTempIndicator" class="temp-indicator"></span></div>
+                            <canvas id="cpuGraph" class="graph-canvas"></canvas>
+                            <div class="metric-value" id="cpuValue">0%</div>
+                        </div>
+                        <div id="cpuCoresBars" class="cpu-cores-container">
+                            <!-- Per-core usage bars will be dynamically generated here -->
+                        </div>
+                    </div>
+                    
+                    <!-- RAM Usage -->
+                    <div class="metric-graph">
+                        <div class="graph-title">RAM Usage</div>
+                        <canvas id="ramGraph" class="graph-canvas"></canvas>
+                        <div class="metric-value" id="ramValue">0%</div>
+                    </div>
+                    
+                    <!-- Enhanced GPU Metrics -->
+                    <div id="gpuMetricsContainer" class="gpu-metrics-container">
+                        <!-- Per-GPU cards will be dynamically generated here -->
+                    </div>
+                    
+                    <!-- Legacy VRAM for compatibility -->
+                    <div class="metric-graph">
+                        <div class="graph-title">Total VRAM</div>
+                        <canvas id="vramGraph" class="graph-canvas"></canvas>
+                        <div class="metric-value" id="vramValue">0%</div>
                     </div>
                 </div>
             </div>

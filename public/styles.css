@@ -47,12 +47,14 @@ body {
 }
 
 .container {
+    width: 100%;
     max-width: 1400px;
+    min-width: 1000px; /* Ensure minimum width for 3-column layout */
     margin: 0 auto;
     background-color: var(--container-bg-color);
     border-radius: 8px;
     box-shadow: 0 2px 10px var(--shadow-color);
-    overflow: hidden;
+    overflow: visible; /* Allow content to be visible if needed */
     height: calc(100vh - 40px);
     display: flex;
     flex-direction: column;
@@ -111,13 +113,17 @@ body {
 
 .main-layout {
     display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    width: 100%;
 }
 
 .config-panel {
     width: 280px;
+    flex-shrink: 0;
     background-color: var(--panel-bg-color);
     border-right: 1px solid var(--border-color);
     padding: 20px;
@@ -260,6 +266,43 @@ body {
     flex-direction: column;
     overflow: hidden;
     position: relative;
+    min-width: 0; /* Allow shrinking */
+    max-width: calc(100% - 600px); /* Leave space for side panels */
+}
+
+/* System Resources Panel (Right Column) */
+.system-panel {
+    width: 320px;
+    flex-shrink: 0;
+    background-color: var(--panel-bg-color);
+    border-left: 1px solid var(--border-color);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    box-shadow: -2px 0 4px var(--shadow-color);
+    transition: all 0.3s ease;
+}
+
+.system-panel-header {
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.system-panel-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.system-panel-header h2::before {
+    content: "📊";
+    font-size: 16px;
 }
 
 /* Make the main content area scrollable but keep action buttons sticky at bottom */
@@ -552,15 +595,10 @@ body {
 
 /* System Metrics Graphs Styles */
 .system-metrics-container {
-    margin-top: 20px;
-    padding: 15px;
-    background-color: var(--panel-bg-color);
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 2px 4px var(--shadow-color);
-    margin-left: 10px;
-    margin-right: 10px;
-    margin-bottom: 10px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
     transition: all 0.3s ease;
 }
 
@@ -769,41 +807,197 @@ body {
     text-align: center;
 }
 
-/* Responsive design */
-@media (max-width: 768px) {
+/* Responsive design for 3-column layout */
+
+/* FORCE ABSOLUTE POSITIONING - Override all other styles */
+.main-layout {
+    position: relative !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 900px !important;
+}
+
+.config-panel {
+    position: absolute !important;
+    left: 10px !important; /* Small gap from left edge */
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 270px !important; /* Adjust width to maintain total spacing */
+    background-color: rgba(255, 0, 0, 0.1) !important; /* Temporary red tint */
+    border: 2px solid red !important; /* Temporary red border */
+    z-index: 100 !important;
+}
+
+.main-content {
+    position: absolute !important;
+    left: 290px !important; /* Start after config panel (280px) + 10px gap */
+    right: 330px !important; /* End before system panel (320px) + 10px gap */
+    top: 0 !important;
+    bottom: 0 !important;
+    background-color: rgba(0, 255, 0, 0.1) !important; /* Temporary green tint */
+    border: 2px solid green !important; /* Temporary green border */
+    z-index: 100 !important;
+}
+
+.system-panel {
+    position: absolute !important;
+    right: 10px !important; /* Small gap from right edge */
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 310px !important; /* Adjust width to maintain total spacing */
+    background-color: rgba(0, 0, 255, 0.1) !important; /* Temporary blue tint */
+    border: 2px solid blue !important; /* Temporary blue border */
+    z-index: 100 !important;
+}
+
+/* Desktop layout (> 900px) - 3-column layout with absolute positioning */
+@media (min-width: 901px) {
     .main-layout {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-width: 900px;
+    }
+    
+    .config-panel {
+        position: absolute !important;
+        left: 10px !important; /* Small gap from left edge */
+        top: 0 !important;
+        bottom: 0 !important;
+        width: 270px !important; /* Adjust width to maintain total spacing */
+        background-color: rgba(255, 0, 0, 0.1) !important; /* Temporary red tint */
+        border: 2px solid red !important; /* Temporary red border */
+        z-index: 10 !important;
+    }
+    
+    .main-content {
+        position: absolute !important;
+        left: 290px !important; /* Start after config panel (280px) + 10px gap */
+        right: 330px !important; /* End before system panel (320px) + 10px gap */
+        top: 0 !important;
+        bottom: 0 !important;
+        background-color: rgba(0, 255, 0, 0.1) !important; /* Temporary green tint */
+        border: 2px solid green !important; /* Temporary green border */
+        z-index: 10 !important;
+    }
+    
+    .system-panel {
+        position: absolute !important;
+        right: 10px !important; /* Small gap from right edge */
+        top: 0 !important;
+        bottom: 0 !important;
+        width: 310px !important; /* Adjust width to maintain total spacing */
+        background-color: rgba(0, 0, 255, 0.1) !important; /* Temporary blue tint */
+        border: 2px solid blue !important; /* Temporary blue border */
+        z-index: 10 !important;
+    }
+}
+
+/* Tablet layout (768px - 1023px) - Stack system panel below main content */
+@media (max-width: 900px) and (min-width: 768px) {
+    .main-layout {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    
+    .main-layout-top {
+        display: flex;
+        flex-direction: row;
+        flex: 1;
+        min-height: 0;
+    }
+    
+    .config-panel {
+        width: 280px;
+        flex-shrink: 0;
+        border-right: 1px solid var(--border-color);
+        border-bottom: none;
+    }
+    
+    .main-content {
+        flex: 1;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .system-panel {
+        width: 100%;
+        height: 300px;
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+        overflow-y: auto;
+        flex-shrink: 0;
+    }
+}
+
+/* Mobile layout (< 768px) - Single column stack */
+@media (max-width: 767px) {
+    .main-layout {
+        display: flex;
         flex-direction: column;
     }
     
     .config-panel {
         width: 100%;
-        height: 200px;
+        height: 250px;
         border-right: none;
-        border-bottom: 1px solid #e0e0e0;
+        border-bottom: 1px solid var(--border-color);
+        overflow-y: auto;
+        flex-shrink: 0;
     }
     
     .main-content {
+        flex: 1;
         padding: 15px;
+        border-bottom: 1px solid var(--border-color);
+        min-height: 0;
+    }
+    
+    .system-panel {
+        width: 100%;
+        height: 300px;
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+        overflow-y: auto;
+        box-shadow: 0 -2px 4px var(--shadow-color);
+        flex-shrink: 0;
     }
     
     .metrics-graphs {
         grid-template-columns: 1fr;
     }
+    
+    .gpu-metrics-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
-/* Wide screen optimization */
-@media (min-width: 1200px) {
+/* Wide screen optimization (≥1440px) - Enhanced 3-column layout */
+@media (min-width: 1440px) {
+    .config-panel {
+        width: 300px;
+    }
+    
+    .system-panel {
+        width: 350px;
+        padding: 25px;
+    }
+    
     .preset-buttons {
         grid-template-columns: repeat(4, 1fr);
-        max-height: none; /* Remove height restriction since they're in tabs now */
+        max-height: none;
     }
     
     .config-tabs {
-        margin-bottom: 15px; /* Reduce spacing on wide screens */
+        margin-bottom: 15px;
     }
     
     .input-section {
-        max-height: calc(100vh - 220px); /* Better space utilization */
+        max-height: calc(100vh - 220px);
+    }
+    
+    .system-panel-header h2 {
+        font-size: 20px;
     }
 }
 
