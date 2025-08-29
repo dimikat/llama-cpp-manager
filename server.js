@@ -647,6 +647,371 @@ async function findGGUFFiles(directory) {
     return ggufFiles;
 }
 
+// Configuration management
+const CONFIGS_FILE = path.join(__dirname, 'data', 'user_configs.json');
+
+// Load configurations from file
+async function loadConfigurationsFromFile() {
+    try {
+        await fs.access(CONFIGS_FILE);
+        const data = await fs.readFile(CONFIGS_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        // If file doesn't exist or is corrupted, return default structure
+        const defaultData = {
+            configurations: {},
+            metadata: {
+                version: "1.0",
+                total_configs: 0,
+                created: new Date().toISOString(),
+                last_backup: null
+            }
+        };
+        await saveConfigurationsToFile(defaultData);
+        return defaultData;
+    }
+}
+
+// Save configurations to file with atomic write
+async function saveConfigurationsToFile(data) {
+    try {
+        // Create backup first
+        try {
+            await fs.access(CONFIGS_FILE);
+            const backupFile = CONFIGS_FILE + '.backup';
+            await fs.copyFile(CONFIGS_FILE, backupFile);
+            data.metadata.last_backup = new Date().toISOString();
+        } catch (error) {
+            // Ignore if original file doesn't exist
+        }
+        
+        // Write to temporary file first, then rename (atomic operation)
+        const tempFile = CONFIGS_FILE + '.tmp';
+        await fs.writeFile(tempFile, JSON.stringify(data, null, 2), 'utf8');
+        await fs.rename(tempFile, CONFIGS_FILE);
+        
+        return true;
+    } catch (error) {
+        console.error('Error saving configurations:', error);
+        return false;
+    }
+}
+
+// Validate configuration parameters
+function validateConfiguration(config) {
+    const errors = [];
+    
+    if (!config.name || typeof config.name !== 'string' || config.name.trim() === '') {
+        errors.push('Configuration name is required');
+    }
+    
+    if (config.parameters) {
+        // Validate numeric parameters
+        const numericFields = ['ngl', 'threads', 'contextSize', 'batchSize', 'ubatchSize', 'nCpuMoe', 'keepModels'];
+        numericFields.forEach(field => {
+            if (config.parameters[field] !== undefined && isNaN(Number(config.parameters[field]))) {
+                errors.push(`${field} must be a number`);
+            }
+        });
+        
+        // Validate float parameters
+        const floatFields = ['temp', 'topP', 'repeatPenalty', 'draftPMin'];
+        floatFields.forEach(field => {
+            if (config.parameters[field] !== undefined && isNaN(parseFloat(config.parameters[field]))) {
+                errors.push(`${field} must be a valid number`);
+            }
+        });
+        
+        // Validate ranges
+        if (config.parameters.temp !== undefined && (config.parameters.temp < 0 || config.parameters.temp > 2)) {
+            errors.push('Temperature must be between 0 and 2');
+        }
+        
+        if (config.parameters.topP !== undefined && (config.parameters.topP < 0 || config.parameters.topP > 1)) {
+            errors.push('Top P must be between 0 and 1');
+        }
+    }
+    
+    return errors;
+}
+
+// Generate unique ID for configurations
+function generateConfigId() {
+    return 'config_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+// API endpoint to get all configurations
+app.get('/api/configs', async (req, res) => {
+    try {
+        const data = await loadConfigurationsFromFile();
+        res.json({
+            configurations: Object.values(data.configurations),
+            metadata: data.metadata
+        });
+    } catch (error) {
+        console.error('Error loading configurations:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to load configurations'
+        });
+    }
+});
+
+// API endpoint to create a new configuration
+app.post('/api/configs', async (req, res) => {
+    try {
+        const { name, description, parameters } = req.body;
+        
+        // Validate input
+        const errors = validateConfiguration({ name, parameters });
+        if (errors.length > 0) {
+            return res.status(400).json({
+                success: false,
+                errors: errors
+            });
+        }
+        
+        // Load existing configurations
+        const data = await loadConfigurationsFromFile();
+        
+        // Check if name already exists
+        const existingConfig = Object.values(data.configurations).find(config => config.name === name);
+        if (existingConfig) {
+            return res.status(400).json({
+                success: false,
+                error: 'Configuration name already exists'
+            });
+        }
+        
+        // Create new configuration
+        const configId = generateConfigId();
+        const newConfig = {
+            id: configId,
+            name: name.trim(),
+            description: description || '',
+            parameters: parameters || {},
+            created: new Date().toISOString(),
+            modified: new Date().toISOString()
+        };
+        
+        // Add to data
+        data.configurations[configId] = newConfig;
+        data.metadata.total_configs = Object.keys(data.configurations).length;
+        
+        // Save to file
+        const saved = await saveConfigurationsToFile(data);
+        if (!saved) {
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to save configuration'
+            });
+        }
+        
+        res.json({
+            success: true,
+            configuration: newConfig
+        });
+        
+    } catch (error) {
+        console.error('Error creating configuration:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
+
+// API endpoint to update an existing configuration
+app.put('/api/configs/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, description, parameters } = req.body;
+        
+        // Load existing configurations
+        const data = await loadConfigurationsFromFile();
+        
+        // Check if configuration exists
+        if (!data.configurations[id]) {
+            return res.status(404).json({
+                success: false,
+                error: 'Configuration not found'
+            });
+        }
+        
+        // Validate input if provided
+        const updateData = { name: name || data.configurations[id].name, parameters: parameters || data.configurations[id].parameters };
+        const errors = validateConfiguration(updateData);
+        if (errors.length > 0) {
+            return res.status(400).json({
+                success: false,
+                errors: errors
+            });
+        }
+        
+        // Check if name already exists (and it's not the current config)
+        if (name && name !== data.configurations[id].name) {
+            const existingConfig = Object.values(data.configurations).find(config => config.name === name && config.id !== id);
+            if (existingConfig) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Configuration name already exists'
+                });
+            }
+        }
+        
+        // Update configuration
+        if (name !== undefined) data.configurations[id].name = name.trim();
+        if (description !== undefined) data.configurations[id].description = description;
+        if (parameters !== undefined) data.configurations[id].parameters = parameters;
+        data.configurations[id].modified = new Date().toISOString();
+        
+        // Save to file
+        const saved = await saveConfigurationsToFile(data);
+        if (!saved) {
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to save configuration'
+            });
+        }
+        
+        res.json({
+            success: true,
+            configuration: data.configurations[id]
+        });
+        
+    } catch (error) {
+        console.error('Error updating configuration:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
+
+// API endpoint to delete a configuration
+app.delete('/api/configs/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Load existing configurations
+        const data = await loadConfigurationsFromFile();
+        
+        // Check if configuration exists
+        if (!data.configurations[id]) {
+            return res.status(404).json({
+                success: false,
+                error: 'Configuration not found'
+            });
+        }
+        
+        // Delete configuration
+        delete data.configurations[id];
+        data.metadata.total_configs = Object.keys(data.configurations).length;
+        
+        // Save to file
+        const saved = await saveConfigurationsToFile(data);
+        if (!saved) {
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to save configurations'
+            });
+        }
+        
+        res.json({
+            success: true,
+            message: 'Configuration deleted successfully'
+        });
+        
+    } catch (error) {
+        console.error('Error deleting configuration:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
+
+// API endpoint to migrate configurations from localStorage
+app.post('/api/configs/migrate', async (req, res) => {
+    try {
+        const { configurations: localConfigs } = req.body;
+        
+        if (!localConfigs || typeof localConfigs !== 'object') {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid configurations data'
+            });
+        }
+        
+        // Load existing configurations
+        const data = await loadConfigurationsFromFile();
+        let migratedCount = 0;
+        const errors = [];
+        
+        // Migrate each configuration
+        for (const [localId, config] of Object.entries(localConfigs)) {
+            try {
+                // Validate configuration
+                const validationErrors = validateConfiguration(config);
+                if (validationErrors.length > 0) {
+                    errors.push(`Configuration '${config.name || localId}': ${validationErrors.join(', ')}`);
+                    continue;
+                }
+                
+                // Check if name already exists
+                const existingConfig = Object.values(data.configurations).find(existing => existing.name === config.name);
+                if (existingConfig) {
+                    errors.push(`Configuration '${config.name}' already exists, skipped`);
+                    continue;
+                }
+                
+                // Create new configuration with server ID
+                const configId = generateConfigId();
+                const migratedConfig = {
+                    id: configId,
+                    name: config.name || `Migrated Config ${migratedCount + 1}`,
+                    description: config.description || 'Migrated from localStorage',
+                    parameters: config.parameters || config, // Handle both old and new format
+                    created: new Date().toISOString(),
+                    modified: new Date().toISOString()
+                };
+                
+                data.configurations[configId] = migratedConfig;
+                migratedCount++;
+                
+            } catch (error) {
+                errors.push(`Configuration '${config.name || localId}': ${error.message}`);
+            }
+        }
+        
+        // Update metadata
+        data.metadata.total_configs = Object.keys(data.configurations).length;
+        
+        // Save to file
+        const saved = await saveConfigurationsToFile(data);
+        if (!saved) {
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to save migrated configurations'
+            });
+        }
+        
+        res.json({
+            success: true,
+            migrated_count: migratedCount,
+            total_configs: data.metadata.total_configs,
+            errors: errors
+        });
+        
+    } catch (error) {
+        console.error('Error migrating configurations:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
+
 // Serve the main page
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));

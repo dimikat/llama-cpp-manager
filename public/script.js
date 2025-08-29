@@ -581,20 +581,169 @@ function populateDraftModels(allModels) {
     }
 }
 
-// Load configurations from localStorage
-function loadConfigurations() {
-    const savedConfigs = localStorage.getItem('llamaCppConfigs');
-    if (savedConfigs) {
-        configurations = JSON.parse(savedConfigs);
-    } else {
-        configurations = {};
+// Load configurations from server
+async function loadConfigurations() {
+    try {
+        const response = await fetch('/api/configs');
+        if (response.ok) {
+            const data = await response.json();
+            // Convert array to object format for backward compatibility
+            configurations = {};
+            data.configurations.forEach(config => {
+                configurations[config.id] = config;
+            });
+            console.log(`Loaded ${data.configurations.length} configurations from server`);
+        } else {
+            console.error('Failed to load configurations from server, trying localStorage fallback');
+            loadConfigurationsFromLocalStorage();
+        }
+    } catch (error) {
+        console.error('Error loading configurations from server, trying localStorage fallback:', error);
+        loadConfigurationsFromLocalStorage();
     }
     return configurations;
 }
 
-// Save configurations to localStorage
-function saveConfigurations() {
+// Fallback: Load configurations from localStorage
+function loadConfigurationsFromLocalStorage() {
+    const savedConfigs = localStorage.getItem('llamaCppConfigs');
+    if (savedConfigs) {
+        const localConfigs = JSON.parse(savedConfigs);
+        // Convert old format to new format if needed
+        configurations = {};
+        Object.entries(localConfigs).forEach(([id, config]) => {
+            configurations[id] = {
+                id: id,
+                name: config.name || 'Unnamed Configuration',
+                description: config.description || '',
+                parameters: config.parameters || config, // Handle both old and new format
+                created: config.created || new Date().toISOString(),
+                modified: config.modified || new Date().toISOString()
+            };
+        });
+        
+        // Trigger migration if we found localStorage data
+        if (Object.keys(configurations).length > 0) {
+            console.log('Found localStorage configurations, triggering migration...');
+            migrateConfigurationsToServer();
+        }
+    } else {
+        configurations = {};
+    }
+}
+
+// Save configuration to server
+async function saveConfiguration(configData) {
+    try {
+        const method = configData.id ? 'PUT' : 'POST';
+        const url = configData.id ? `/api/configs/${configData.id}` : '/api/configs';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(configData)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                // Update local cache
+                configurations[result.configuration.id] = result.configuration;
+                return result.configuration;
+            } else {
+                throw new Error(result.error || 'Save failed');
+            }
+        } else {
+            throw new Error(`Server error: ${response.status}`);
+        }
+    } catch (error) {
+        console.error('Error saving configuration to server, falling back to localStorage:', error);
+        // Fallback to localStorage
+        return saveConfigurationToLocalStorage(configData);
+    }
+}
+
+// Fallback: Save to localStorage
+function saveConfigurationToLocalStorage(configData) {
+    if (!configData.id) {
+        configData.id = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+    
+    configurations[configData.id] = configData;
     localStorage.setItem('llamaCppConfigs', JSON.stringify(configurations));
+    return configData;
+}
+
+// Delete configuration from server
+async function deleteConfiguration(configId) {
+    try {
+        const response = await fetch(`/api/configs/${configId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                // Remove from local cache
+                delete configurations[configId];
+                return true;
+            } else {
+                throw new Error(result.error || 'Delete failed');
+            }
+        } else {
+            throw new Error(`Server error: ${response.status}`);
+        }
+    } catch (error) {
+        console.error('Error deleting configuration from server:', error);
+        // Still try to remove from local cache
+        delete configurations[configId];
+        localStorage.setItem('llamaCppConfigs', JSON.stringify(configurations));
+        return false;
+    }
+}
+
+// Migrate configurations from localStorage to server
+async function migrateConfigurationsToServer() {
+    try {
+        const localConfigs = localStorage.getItem('llamaCppConfigs');
+        if (!localConfigs) {
+            return;
+        }
+        
+        const response = await fetch('/api/configs/migrate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                configurations: JSON.parse(localConfigs)
+            })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            console.log(`Migration completed: ${result.migrated_count} configurations migrated`);
+            if (result.errors && result.errors.length > 0) {
+                console.warn('Migration warnings:', result.errors);
+            }
+            
+            // Create backup of localStorage and reload from server
+            localStorage.setItem('llamaCppConfigs_backup', localConfigs);
+            localStorage.setItem('llamaCppConfigs_migrated', 'true');
+            
+            // Reload configurations from server
+            await loadConfigurations();
+            
+            return result;
+        } else {
+            throw new Error('Migration failed');
+        }
+    } catch (error) {
+        console.error('Error migrating configurations:', error);
+        return null;
+    }
 }
 
 // Get all configuration names
@@ -610,70 +759,16 @@ function createDefaultConfigName() {
     return cleanName;
 }
 
-// Save current values to configurations
-function saveCurrentValues(configId) {
-    if (!configId) return;
-    
-    const config = {
-        // Note: serverPath is now stored separately via saveServerPath()
-        modelPath: modelPathSelect.value,  // Use select value instead of input value
-        ngl: parseInt(nglInput.value) || 0,
-        threads: parseInt(threadsInput.value) || 1,
-        temp: parseFloat(tempInput.value) || 0,
-        topK: parseInt(topKInput.value) || 0,
-        topP: parseFloat(topPInput.value) || 0,
-        repeatPenalty: parseFloat(repeatPenaltyInput.value) || 0,
-        mlock: mlockCheckbox.checked,
-        swaFull: swaFullCheckbox.checked,
-        contextSize: parseInt(contextSizeInput.value) || 1,
-        nCpuMoe: parseInt(nCpuMoeInput.value) || 0,
-        cpuMoe: cpuMoeCheckbox.checked,
-        ctkEnable: ctkEnableCheckbox.checked,
-        contextTokenKey: contextTokenKeySelect.value,
-        contextTokenValue: contextTokenValueSelect.value,
-        fastAttention: fastAttentionCheckbox.checked,
-        jinja: jinjaCheckbox.checked,
-        // New Multi-GPU parameters
-        tensorSplit: tensorSplitInput.value,
-        mainGpu: mainGpuSelect.value,
-        splitMode: splitModeSelect.value,
-        // New Performance parameters
-        batchSize: parseInt(batchSizeInput.value) || 0,
-        ubatchSize: parseInt(ubatchSizeInput.value) || 0,
-        contBatching: contBatchingCheckbox.checked,
-        noMmap: noMmapCheckbox.checked,
-        numa: numaSelect.value,
-        // New Advanced Memory parameters
-        cacheTypeK: cacheTypeKSelect.value,
-        cacheTypeV: cacheTypeVSelect.value,
-        keepModels: parseInt(keepModelsInput.value) || 0,
-        memoryTest: memoryTestCheckbox.checked,
-        // New Server Network parameters
-        serverHost: serverHostInput.value,
-        serverPort: parseInt(serverPortInput.value) || 0,
-        readTimeout: parseInt(readTimeoutInput.value) || 0,
-        writeTimeout: parseInt(writeTimeoutInput.value) || 0,
-        apiKey: apiKeyInput.value,
-        // Draft Model parameters
-        draftModelEnable: draftModelEnableCheckbox.checked,
-        draftModelPath: draftModelPathSelect.value,
-        draftGpuLayers: parseInt(draftGpuLayersInput.value) || 0,
-        draftContextSize: parseInt(draftContextSizeInput.value) || 0,
-        draftMaxTokens: parseInt(draftMaxTokensInput.value) || 0,
-        draftMinTokens: parseInt(draftMinTokensInput.value) || 0,
-        draftPMin: parseFloat(draftPMinInput.value) || 0
-    };
-    
-    configurations[configId] = config;
-    saveConfigurations();
-}
 
 // Load configuration values into form
 function loadConfiguration(configId) {
     if (!configId || !configurations[configId]) return;
     
-    const config = configurations[configId];
+    const configData = configurations[configId];
     currentConfigId = configId;
+    
+    // Handle both old and new configuration format
+    const config = configData.parameters || configData; // New format has parameters object, old format is direct
     
     // Load values into form fields
     // Note: serverPath is now loaded separately via loadServerPath()
@@ -846,11 +941,6 @@ async function launchServer() {
         config.draftPMin = parseFloat(draftPMinInput.value) || 0;
         
         console.log('DEBUG: Configuration object completed:', config);
-        
-        // Save current values to localStorage (if we have a config ID)
-        if (currentConfigId) {
-            saveCurrentValues(currentConfigId);
-        }
         
     } catch (configError) {
         console.error('DEBUG: Error collecting configuration:', configError);
@@ -1170,25 +1260,29 @@ async function stopServer() {
 function renderConfigList() {
     configList.innerHTML = '';
     
-    const configNames = getConfigNames();
-    if (configNames.length === 0) {
+    const configIds = Object.keys(configurations);
+    if (configIds.length === 0) {
         configList.innerHTML = '<div class="empty-configs">No configurations saved</div>';
         return;
     }
     
     // Sort configurations by name for consistent display
-    configNames.sort().forEach(name => {
+    const sortedConfigs = configIds
+        .map(id => configurations[id])
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    
+    sortedConfigs.forEach(config => {
         const configItem = document.createElement('div');
         configItem.className = 'config-item';
-        if (currentConfigId === name) {
+        if (currentConfigId === config.id) {
             configItem.classList.add('active');
         }
         
         configItem.innerHTML = `
-            <span class="config-item-name">${name}</span>
+            <span class="config-item-name">${config.name || 'Unnamed Configuration'}</span>
             <div class="config-item-actions">
-                <button class="config-item-btn edit-btn" data-name="${name}">✏️</button>
-                <button class="config-item-btn delete-btn" data-name="${name}">🗑️</button>
+                <button class="config-item-btn edit-btn" data-id="${config.id}" data-name="${config.name}">✏️</button>
+                <button class="config-item-btn delete-btn" data-id="${config.id}" data-name="${config.name}">🗑️</button>
             </div>
         `;
         
@@ -1199,16 +1293,16 @@ function renderConfigList() {
     document.querySelectorAll('.config-item-btn.edit-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const configName = btn.dataset.name;
-            editConfiguration(configName);
+            const configId = btn.dataset.id || btn.dataset.name; // Handle both old and new format
+            editConfiguration(configId);
         });
     });
     
     document.querySelectorAll('.config-item-btn.delete-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const configName = btn.dataset.name;
-            deleteConfiguration(configName);
+            const configId = btn.dataset.id || btn.dataset.name; // Handle both old and new format
+            deleteConfigurationUI(configId);
         });
     });
     
@@ -1216,35 +1310,36 @@ function renderConfigList() {
     document.querySelectorAll('.config-item').forEach(item => {
         item.addEventListener('click', (e) => {
             if (e.target.classList.contains('config-item-btn')) return;
-            const configName = e.currentTarget.querySelector('.config-item-name').textContent;
-            selectConfiguration(configName);
+            const configId = item.querySelector('.config-item-btn').dataset.id ||
+                           item.querySelector('.config-item-name').textContent; // Handle both old and new format
+            selectConfiguration(configId);
         });
     });
 }
 
 // Select a configuration to use
-function selectConfiguration(configName) {
-    if (configurations[configName]) {
-        loadConfiguration(configName);
-        currentConfigId = configName;
+function selectConfiguration(configId) {
+    if (configurations[configId]) {
+        loadConfiguration(configId);
+        currentConfigId = configId;
         renderConfigList();
     }
 }
 
 // Edit a configuration
-function editConfiguration(configName) {
-    const config = configurations[configName];
+function editConfiguration(configId) {
+    const config = configurations[configId];
     if (config) {
         // Show the form with the configuration name
         configFormTitle.textContent = 'Edit Configuration';
-        configNameInput.value = configName || '';
+        configNameInput.value = config.name || '';
         configFormContainer.showModal();
-        currentConfigId = configName;
+        currentConfigId = configId;
     }
 }
 
-// Save a new or edited configuration
-function saveConfiguration() {
+// Save a new or edited configuration (UI function)
+async function saveConfigurationUI() {
     const configName = configNameInput.value.trim();
     
     if (!configName) {
@@ -1252,16 +1347,97 @@ function saveConfiguration() {
         return;
     }
     
-    // Save the current form values to this configuration
-    saveCurrentValues(configName);
-    
-    // Close the form and refresh the list
-    configFormContainer.close();
-    renderConfigList();
-    
-    // Clear the form
-    configNameInput.value = '';
-    configFormTitle.textContent = 'Create New Configuration';
+    try {
+        // Collect all parameters from the form
+        const parameters = {
+            modelPath: modelPathSelect.value,
+            ngl: parseInt(nglInput.value) || 0,
+            threads: parseInt(threadsInput.value) || 1,
+            temp: parseFloat(tempInput.value) || 0,
+            topK: parseInt(topKInput.value) || 0,
+            topP: parseFloat(topPInput.value) || 0,
+            repeatPenalty: parseFloat(repeatPenaltyInput.value) || 0,
+            mlock: mlockCheckbox.checked,
+            swaFull: swaFullCheckbox.checked,
+            contextSize: parseInt(contextSizeInput.value) || 1,
+            nCpuMoe: parseInt(nCpuMoeInput.value) || 0,
+            cpuMoe: cpuMoeCheckbox.checked,
+            ctkEnable: ctkEnableCheckbox.checked,
+            contextTokenKey: contextTokenKeySelect.value,
+            contextTokenValue: contextTokenValueSelect.value,
+            fastAttention: fastAttentionCheckbox.checked,
+            jinja: jinjaCheckbox.checked,
+            // Multi-GPU parameters
+            tensorSplit: tensorSplitInput.value,
+            mainGpu: mainGpuSelect.value,
+            splitMode: splitModeSelect.value,
+            // Performance parameters
+            batchSize: parseInt(batchSizeInput.value) || 0,
+            ubatchSize: parseInt(ubatchSizeInput.value) || 0,
+            contBatching: contBatchingCheckbox.checked,
+            noMmap: noMmapCheckbox.checked,
+            numa: numaSelect.value,
+            // Advanced Memory parameters
+            cacheTypeK: cacheTypeKSelect.value,
+            cacheTypeV: cacheTypeVSelect.value,
+            keepModels: parseInt(keepModelsInput.value) || 0,
+            memoryTest: memoryTestCheckbox.checked,
+            // Server Network parameters
+            serverHost: serverHostInput.value,
+            serverPort: parseInt(serverPortInput.value) || 0,
+            readTimeout: parseInt(readTimeoutInput.value) || 0,
+            writeTimeout: parseInt(writeTimeoutInput.value) || 0,
+            apiKey: apiKeyInput.value,
+            // Draft Model parameters
+            draftModelEnable: draftModelEnableCheckbox.checked,
+            draftModelPath: draftModelPathSelect.value,
+            draftGpuLayers: parseInt(draftGpuLayersInput.value) || 0,
+            draftContextSize: parseInt(draftContextSizeInput.value) || 0,
+            draftMaxTokens: parseInt(draftMaxTokensInput.value) || 0,
+            draftMinTokens: parseInt(draftMinTokensInput.value) || 0,
+            draftPMin: parseFloat(draftPMinInput.value) || 0
+        };
+        
+        // Create configuration object
+        // Only include ID if we're editing an existing configuration
+        const configData = {
+            name: configName,
+            description: configurations[currentConfigId]?.description || '',
+            parameters: parameters
+        };
+        
+        // Add ID only if editing existing config
+        if (currentConfigId) {
+            configData.id = currentConfigId;
+        }
+        
+        console.log('Saving configuration:', configData);
+        
+        // Save to server
+        const savedConfig = await saveConfiguration(configData);
+        if (savedConfig) {
+            // Update local cache
+            configurations[savedConfig.id] = savedConfig;
+            currentConfigId = savedConfig.id;
+            
+            // Close the form and refresh the list
+            configFormContainer.close();
+            renderConfigList();
+            
+            // Clear the form and reset for next configuration
+            configNameInput.value = '';
+            configFormTitle.textContent = 'Create New Configuration';
+            currentConfigId = null;
+            
+            console.log(`Configuration '${configName}' saved successfully`);
+        } else {
+            throw new Error('Failed to save configuration');
+        }
+        
+    } catch (error) {
+        console.error('Error saving configuration:', error);
+        alert(`Error saving configuration: ${error.message}. Please try again.`);
+    }
 }
 
 // Cancel configuration editing
@@ -1269,36 +1445,50 @@ function cancelConfiguration() {
     configFormContainer.close();
     configNameInput.value = '';
     configFormTitle.textContent = 'Create New Configuration';
+    currentConfigId = null;
 }
 
-// Delete a configuration
-function deleteConfiguration(configName) {
+// Delete a configuration (UI function)
+async function deleteConfigurationUI(configId) {
+    const config = configurations[configId];
+    const configName = config?.name || configId;
+    
     if (confirm(`Are you sure you want to delete the configuration "${configName}"?`)) {
-        delete configurations[configName];
-        saveConfigurations();
-        renderConfigList();
-        
-        // If we just deleted the current config, clear the form
-        if (currentConfigId === configName) {
-            currentConfigId = null;
-            // Clear all fields
-            serverPathInput.value = '';
-            modelPathSelect.value = '';
-            nglInput.value = '99';
-            threadsInput.value = '12';
-            tempInput.value = '0.7';
-            topKInput.value = '20';
-            topPInput.value = '0.00';
-            repeatPenaltyInput.value = '1.05';
-            mlockCheckbox.checked = false;
-            swaFullCheckbox.checked = false;
-            contextSizeInput.value = '16384';
-            nCpuMoeInput.value = '8';
-            cpuMoeCheckbox.checked = false;
-            ctkEnableCheckbox.checked = false;
-            contextTokenKeySelect.value = 'f16';
-            contextTokenValueSelect.value = 'f16';
-            fastAttentionCheckbox.checked = false;
+        try {
+            const success = await deleteConfiguration(configId);
+            if (success) {
+                renderConfigList();
+                
+                // If we just deleted the current config, clear the form
+                if (currentConfigId === configId) {
+                    currentConfigId = null;
+                    // Clear all fields to defaults
+                    serverPathInput.value = '';
+                    modelPathSelect.value = '';
+                    nglInput.value = '99';
+                    threadsInput.value = '12';
+                    tempInput.value = '0.7';
+                    topKInput.value = '20';
+                    topPInput.value = '0.00';
+                    repeatPenaltyInput.value = '1.05';
+                    mlockCheckbox.checked = false;
+                    swaFullCheckbox.checked = false;
+                    contextSizeInput.value = '16384';
+                    nCpuMoeInput.value = '8';
+                    cpuMoeCheckbox.checked = false;
+                    ctkEnableCheckbox.checked = false;
+                    contextTokenKeySelect.value = 'f16';
+                    contextTokenValueSelect.value = 'f16';
+                    fastAttentionCheckbox.checked = false;
+                }
+                
+                console.log(`Configuration '${configName}' deleted successfully`);
+            } else {
+                throw new Error('Delete failed');
+            }
+        } catch (error) {
+            console.error('Error deleting configuration:', error);
+            alert('Error deleting configuration. Please try again.');
         }
     }
 }
@@ -1431,14 +1621,14 @@ async function init() {
         serverPathInput.value = savedServerPath;
     }
     
-    // Load configurations
-    loadConfigurations();
+    // Load configurations asynchronously
+    await loadConfigurations();
     
     await fetchModels();
     
     // Set up event listeners for configuration management
     addConfigBtn.addEventListener('click', addNewConfiguration);
-    saveConfigBtn.addEventListener('click', saveConfiguration);
+    saveConfigBtn.addEventListener('click', saveConfigurationUI);
     cancelConfigBtn.addEventListener('click', cancelConfiguration);
     
     // Set up event listeners for context token parameters
