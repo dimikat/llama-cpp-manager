@@ -2158,8 +2158,6 @@ function forceLayoutPositioning() {
         configPanel.style.bottom = '0';
         configPanel.style.width = '270px';
         configPanel.style.zIndex = '10';
-        configPanel.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
-        configPanel.style.border = '2px solid red';
     }
     
     if (mainContent) {
@@ -2169,8 +2167,6 @@ function forceLayoutPositioning() {
         mainContent.style.top = '0';
         mainContent.style.bottom = '0';
         mainContent.style.zIndex = '10';
-        mainContent.style.backgroundColor = 'rgba(0, 255, 0, 0.1)';
-        mainContent.style.border = '2px solid green';
     }
     
     if (systemPanel) {
@@ -2180,8 +2176,6 @@ function forceLayoutPositioning() {
         systemPanel.style.bottom = '0';
         systemPanel.style.width = '310px';
         systemPanel.style.zIndex = '10';
-        systemPanel.style.backgroundColor = 'rgba(0, 0, 255, 0.1)';
-        systemPanel.style.border = '2px solid blue';
         console.log('System panel positioned at right: 10px');
     }
 }

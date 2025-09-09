@@ -818,21 +818,6 @@ body {
     text-align: center;
 }
 
-/* Debug layout coloring (no positioning) */
-.main-layout.debug-layout .config-panel {
-    background-color: rgba(255, 0, 0, 0.1);
-    border: 2px solid red;
-}
-
-.main-layout.debug-layout .main-content {
-    background-color: rgba(0, 255, 0, 0.1);
-    border: 2px solid green;
-}
-
-.main-layout.debug-layout .system-panel {
-    background-color: rgba(0, 0, 255, 0.1);
-    border: 2px solid blue;
-}
 
 /* Tablet layout (768px - 1023px) - Stack system panel below main content */
 @media (max-width: 900px) and (min-width: 768px) {
