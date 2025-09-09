@@ -114,7 +114,7 @@ body {
 .main-layout {
     display: flex;
     flex-direction: row;
-    flex-wrap: nowrap;
+    gap: 10px;
     flex: 1;
     min-height: 0;
     overflow: hidden;
@@ -122,7 +122,7 @@ body {
 }
 
 .config-panel {
-    width: 280px;
+    width: 270px;
     flex-shrink: 0;
     background-color: var(--panel-bg-color);
     border-right: 1px solid var(--border-color);
@@ -267,12 +267,11 @@ body {
     overflow: hidden;
     position: relative;
     min-width: 0; /* Allow shrinking */
-    max-width: calc(100% - 600px); /* Leave space for side panels */
 }
 
 /* System Resources Panel (Right Column) */
 .system-panel {
-    width: 320px;
+    width: 310px;
     flex-shrink: 0;
     background-color: var(--panel-bg-color);
     border-left: 1px solid var(--border-color);
@@ -807,90 +806,20 @@ body {
     text-align: center;
 }
 
-/* Responsive design for 3-column layout */
-
-/* FORCE ABSOLUTE POSITIONING - Override all other styles */
-.main-layout {
-    position: relative !important;
-    width: 100% !important;
-    height: 100% !important;
-    min-width: 900px !important;
+/* Debug layout coloring (no positioning) */
+.main-layout.debug-layout .config-panel {
+    background-color: rgba(255, 0, 0, 0.1);
+    border: 2px solid red;
 }
 
-.config-panel {
-    position: absolute !important;
-    left: 10px !important; /* Small gap from left edge */
-    top: 0 !important;
-    bottom: 0 !important;
-    width: 270px !important; /* Adjust width to maintain total spacing */
-    background-color: rgba(255, 0, 0, 0.1) !important; /* Temporary red tint */
-    border: 2px solid red !important; /* Temporary red border */
-    z-index: 100 !important;
+.main-layout.debug-layout .main-content {
+    background-color: rgba(0, 255, 0, 0.1);
+    border: 2px solid green;
 }
 
-.main-content {
-    position: absolute !important;
-    left: 290px !important; /* Start after config panel (280px) + 10px gap */
-    right: 330px !important; /* End before system panel (320px) + 10px gap */
-    top: 0 !important;
-    bottom: 0 !important;
-    background-color: rgba(0, 255, 0, 0.1) !important; /* Temporary green tint */
-    border: 2px solid green !important; /* Temporary green border */
-    z-index: 100 !important;
-}
-
-.system-panel {
-    position: absolute !important;
-    right: 10px !important; /* Small gap from right edge */
-    top: 0 !important;
-    bottom: 0 !important;
-    width: 310px !important; /* Adjust width to maintain total spacing */
-    background-color: rgba(0, 0, 255, 0.1) !important; /* Temporary blue tint */
-    border: 2px solid blue !important; /* Temporary blue border */
-    z-index: 100 !important;
-}
-
-/* Desktop layout (> 900px) - 3-column layout with absolute positioning */
-@media (min-width: 901px) {
-    .main-layout {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        min-width: 900px;
-    }
-    
-    .config-panel {
-        position: absolute !important;
-        left: 10px !important; /* Small gap from left edge */
-        top: 0 !important;
-        bottom: 0 !important;
-        width: 270px !important; /* Adjust width to maintain total spacing */
-        background-color: rgba(255, 0, 0, 0.1) !important; /* Temporary red tint */
-        border: 2px solid red !important; /* Temporary red border */
-        z-index: 10 !important;
-    }
-    
-    .main-content {
-        position: absolute !important;
-        left: 290px !important; /* Start after config panel (280px) + 10px gap */
-        right: 330px !important; /* End before system panel (320px) + 10px gap */
-        top: 0 !important;
-        bottom: 0 !important;
-        background-color: rgba(0, 255, 0, 0.1) !important; /* Temporary green tint */
-        border: 2px solid green !important; /* Temporary green border */
-        z-index: 10 !important;
-    }
-    
-    .system-panel {
-        position: absolute !important;
-        right: 10px !important; /* Small gap from right edge */
-        top: 0 !important;
-        bottom: 0 !important;
-        width: 310px !important; /* Adjust width to maintain total spacing */
-        background-color: rgba(0, 0, 255, 0.1) !important; /* Temporary blue tint */
-        border: 2px solid blue !important; /* Temporary blue border */
-        z-index: 10 !important;
-    }
+.main-layout.debug-layout .system-panel {
+    background-color: rgba(0, 0, 255, 0.1);
+    border: 2px solid blue;
 }
 
 /* Tablet layout (768px - 1023px) - Stack system panel below main content */
