@@ -583,6 +583,96 @@ function broadcastContextUpdate(used, total) {
 }
 
 // Function to recursively find GGUF files
+// Group multi-part models together and return primary parts only
+function groupMultiPartModels(ggufFiles) {
+    console.log(`Processing ${ggufFiles.length} GGUF files for multi-part grouping...`);
+    const groupedModels = new Map();
+    const standaloneModels = [];
+    
+    // Pattern to detect multi-part models: ends with -00001-of-00002, -00002-of-00002, etc.
+    const multiPartPattern = /^(.*?)-(\d{5})-of-(\d{5})\.gguf$/i;
+    
+    for (const model of ggufFiles) {
+        const match = model.name.match(multiPartPattern);
+        
+        if (match) {
+            console.log(`Found multi-part model: ${model.name}`);
+            const [, baseName, partNum, totalParts] = match;
+            const partNumber = parseInt(partNum);
+            const totalPartCount = parseInt(totalParts);
+            
+            // Create a group key based on the base name and total parts
+            const groupKey = `${baseName}-${totalParts}parts`;
+            
+            if (!groupedModels.has(groupKey)) {
+                groupedModels.set(groupKey, {
+                    baseName,
+                    totalParts: totalPartCount,
+                    parts: new Map(),
+                    combinedSize: 0
+                });
+            }
+            
+            const group = groupedModels.get(groupKey);
+            group.parts.set(partNumber, model);
+            group.combinedSize += model.fileSizeMB || 0;
+        } else {
+            // Single-part model, add directly
+            standaloneModels.push(model);
+        }
+    }
+    
+    // Process grouped models
+    const processedModels = [];
+    
+    for (const [groupKey, group] of groupedModels) {
+        // Check if we have all parts
+        const expectedParts = Array.from({length: group.totalParts}, (_, i) => i + 1);
+        const availableParts = Array.from(group.parts.keys()).sort((a, b) => a - b);
+        const hasAllParts = expectedParts.every(part => group.parts.has(part));
+        
+        if (hasAllParts && group.parts.has(1)) {
+            // Use the first part as the primary model but modify its display info
+            const primaryPart = group.parts.get(1);
+            const multiPartModel = {
+                ...primaryPart,
+                name: `${group.baseName}.gguf`, // Clean name without part numbers
+                displayName: `${group.baseName} (${group.totalParts} parts)`, // Show it's multi-part
+                fileSizeMB: group.combinedSize, // Combined size
+                isMultiPart: true,
+                totalParts: group.totalParts,
+                availableParts: availableParts.length,
+                allPartsPresent: true
+            };
+            
+            processedModels.push(multiPartModel);
+            console.log(`Grouped multi-part model: ${group.baseName} (${group.totalParts} parts, ${group.combinedSize}MB total)`);
+        } else {
+            // Missing parts - add individual parts with warnings
+            console.warn(`Incomplete multi-part model: ${group.baseName} - missing parts`);
+            for (const [partNum, model] of group.parts) {
+                processedModels.push({
+                    ...model,
+                    displayName: `${model.name} (⚠️ INCOMPLETE - ${availableParts.length}/${group.totalParts} parts)`,
+                    isMultiPart: true,
+                    totalParts: group.totalParts,
+                    availableParts: availableParts.length,
+                    allPartsPresent: false
+                });
+            }
+        }
+    }
+    
+    // Add standalone models
+    processedModels.push(...standaloneModels.map(model => ({
+        ...model,
+        isMultiPart: false,
+        allPartsPresent: true
+    })));
+    
+    return processedModels;
+}
+
 async function findGGUFFiles(directory) {
     const ggufFiles = [];
     const defaultModelsPath = process.env.LM_STUDIO_MODELS_PATH || 
@@ -644,7 +734,8 @@ async function findGGUFFiles(directory) {
         console.error('Error accessing models directory:', error);
     }
     
-    return ggufFiles;
+    // Group multi-part models and return processed list
+    return groupMultiPartModels(ggufFiles);
 }
 
 // Configuration management

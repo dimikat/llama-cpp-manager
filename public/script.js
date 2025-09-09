@@ -483,8 +483,8 @@ async function fetchModels() {
                     displayText += archIcon + ' ';
                 }
                 
-                // Add model name and key details
-                const modelName = model.name.replace('.gguf', '');
+                // Add model name and key details - handle multi-part models
+                const modelName = model.displayName || model.name.replace('.gguf', '');
                 const params = model.parameters !== 'Unknown' ? model.parameters : '';
                 const quant = model.quantization !== 'Unknown' ? model.quantization : '';
                 const context = model.contextLength !== 'Unknown' ? model.contextLength : '';
@@ -492,6 +492,11 @@ async function fetchModels() {
                 
                 // Build compact description
                 displayText += modelName;
+                
+                // Add multi-part indicator if applicable
+                if (model.isMultiPart && !model.allPartsPresent) {
+                    displayText = '⚠️ ' + displayText; // Add warning for incomplete multi-part models
+                }
                 
                 if (params || quant || context) {
                     const details = [];
@@ -513,6 +518,15 @@ async function fetchModels() {
                 }
                 
                 option.textContent = displayText;
+                
+                // Add tooltip for multi-part models
+                if (model.isMultiPart) {
+                    if (model.allPartsPresent) {
+                        option.title = `Multi-part model: ${model.totalParts} parts combined (${sizeMB} total)`;
+                    } else {
+                        option.title = `⚠️ Incomplete multi-part model: ${model.availableParts}/${model.totalParts} parts available`;
+                    }
+                }
                 
                 // Store metadata as data attributes for potential future use
                 option.dataset.architecture = model.architecture;
@@ -561,7 +575,18 @@ function populateDraftModels(allModels) {
     draftModels.forEach(model => {
         const option = document.createElement('option');
         option.value = model.path;
-        option.textContent = model.relativePath || model.name;
+        option.textContent = model.displayName || model.relativePath || model.name;
+        
+        // Add tooltip for multi-part draft models
+        if (model.isMultiPart) {
+            const sizeMB = model.fileSizeMB ? `${model.fileSizeMB}MB` : '';
+            if (model.allPartsPresent) {
+                option.title = `Multi-part draft model: ${model.totalParts} parts combined (${sizeMB} total)`;
+            } else {
+                option.title = `⚠️ Incomplete multi-part draft model: ${model.availableParts}/${model.totalParts} parts available`;
+            }
+        }
+        
         draftModelPathSelect.appendChild(option);
     });
     
@@ -575,7 +600,19 @@ function populateDraftModels(allModels) {
         smallerModels.forEach(model => {
             const option = document.createElement('option');
             option.value = model.path;
-            option.textContent = `${model.relativePath || model.name} (potential draft)`;
+            const displayName = model.displayName || model.relativePath || model.name;
+            option.textContent = `${displayName} (potential draft)`;
+            
+            // Add tooltip for potential multi-part draft models
+            if (model.isMultiPart) {
+                const sizeMB = model.fileSizeMB ? `${model.fileSizeMB}MB` : '';
+                if (model.allPartsPresent) {
+                    option.title = `Potential multi-part draft model: ${model.totalParts} parts combined (${sizeMB} total)`;
+                } else {
+                    option.title = `⚠️ Incomplete potential multi-part draft model: ${model.availableParts}/${model.totalParts} parts available`;
+                }
+            }
+            
             draftModelPathSelect.appendChild(option);
         });
     }
