@@ -112,18 +112,22 @@ body {
 }
 
 .main-layout {
-    display: flex;
-    flex-direction: row;
-    gap: 10px;
+    position: relative !important;
+    display: block !important;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
-    width: 100%;
+    overflow: visible !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 900px !important;
 }
 
 .config-panel {
-    width: 270px;
-    flex-shrink: 0;
+    position: absolute !important;
+    left: 10px !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 270px !important;
     background-color: var(--panel-bg-color);
     border-right: 1px solid var(--border-color);
     padding: 20px;
@@ -132,6 +136,7 @@ body {
     overflow-y: auto;
     box-shadow: 0 2px 4px var(--shadow-color);
     transition: all 0.3s ease;
+    z-index: 10 !important;
 }
 
 .config-header {
@@ -260,19 +265,25 @@ body {
 }
 
 .main-content {
-    flex: 1;
+    position: absolute !important;
+    left: 300px !important;
+    right: 330px !important;
+    top: 0 !important;
+    bottom: 0 !important;
     padding: 25px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    position: relative;
-    min-width: 0; /* Allow shrinking */
+    z-index: 10 !important;
 }
 
 /* System Resources Panel (Right Column) */
 .system-panel {
-    width: 310px;
-    flex-shrink: 0;
+    position: absolute !important;
+    right: 10px !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 310px !important;
     background-color: var(--panel-bg-color);
     border-left: 1px solid var(--border-color);
     padding: 20px;
@@ -281,6 +292,7 @@ body {
     overflow-y: auto;
     box-shadow: -2px 0 4px var(--shadow-color);
     transition: all 0.3s ease;
+    z-index: 10 !important;
 }
 
 .system-panel-header {

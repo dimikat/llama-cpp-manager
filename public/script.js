@@ -2133,10 +2133,66 @@ function handleResize() {
 }
 
 // Start the application when DOM is loaded
+// Force absolute positioning as nuclear fallback option
+function forceLayoutPositioning() {
+    console.log('Applying JavaScript positioning fallback...');
+    
+    const mainLayout = document.querySelector('.main-layout');
+    const configPanel = document.querySelector('.config-panel');
+    const mainContent = document.querySelector('.main-content');
+    const systemPanel = document.querySelector('.system-panel');
+    
+    if (mainLayout) {
+        mainLayout.style.position = 'relative';
+        mainLayout.style.display = 'block';
+        mainLayout.style.width = '100%';
+        mainLayout.style.height = '100%';
+        mainLayout.style.minWidth = '900px';
+        mainLayout.style.overflow = 'visible';
+    }
+    
+    if (configPanel) {
+        configPanel.style.position = 'absolute';
+        configPanel.style.left = '10px';
+        configPanel.style.top = '0';
+        configPanel.style.bottom = '0';
+        configPanel.style.width = '270px';
+        configPanel.style.zIndex = '10';
+        configPanel.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
+        configPanel.style.border = '2px solid red';
+    }
+    
+    if (mainContent) {
+        mainContent.style.position = 'absolute';
+        mainContent.style.left = '300px';
+        mainContent.style.right = '330px';
+        mainContent.style.top = '0';
+        mainContent.style.bottom = '0';
+        mainContent.style.zIndex = '10';
+        mainContent.style.backgroundColor = 'rgba(0, 255, 0, 0.1)';
+        mainContent.style.border = '2px solid green';
+    }
+    
+    if (systemPanel) {
+        systemPanel.style.position = 'absolute';
+        systemPanel.style.right = '10px';
+        systemPanel.style.top = '0';
+        systemPanel.style.bottom = '0';
+        systemPanel.style.width = '310px';
+        systemPanel.style.zIndex = '10';
+        systemPanel.style.backgroundColor = 'rgba(0, 0, 255, 0.1)';
+        systemPanel.style.border = '2px solid blue';
+        console.log('System panel positioned at right: 10px');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     init();
     initCharts(); // Initialize chart contexts
     startMetricUpdates(); // Start periodic metric updates
+    
+    // Apply positioning fallback after a short delay to ensure DOM is ready
+    setTimeout(forceLayoutPositioning, 100);
     
     // Add resize listener for charts
     window.addEventListener('resize', handleResize);
