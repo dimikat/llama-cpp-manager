@@ -50,6 +50,7 @@ const presetHighPerfBtn = document.getElementById('presetHighPerf');
 const presetBalancedDualBtn = document.getElementById('presetBalancedDual');
 const presetLargeModelBtn = document.getElementById('presetLargeModel');
 const presetCpuOffloadBtn = document.getElementById('presetCpuOffload');
+const presetHighRamHybridBtn = document.getElementById('presetHighRamHybrid');
 
 // Draft Model (Speculative Decoding) elements
 const draftModelEnableCheckbox = document.getElementById('draftModelEnable');
@@ -1603,6 +1604,20 @@ function applyCpuOffloadHybrid() {
     showMultiGpuWarning(true);
 }
 
+function applyHighRamHybrid() {
+    nglInput.value = '38';  // Conservative GPU layers for 24GB cards
+    tensorSplitInput.value = '0.5,0.5';  // Even split across dual 3090s
+    splitModeSelect.value = 'layer';
+    threadsInput.value = '18';  // Utilize DDR5 for remaining layers
+    mlockCheckbox.checked = true;  // Enable memory locking for DDR5
+    contextSizeInput.value = '32768';  // Can go higher with abundant RAM
+    batchSizeInput.value = '1024';
+    ubatchSizeInput.value = '256';
+    fastAttentionCheckbox.checked = true;
+    noMmapCheckbox.checked = false;  // Use mmap with abundant RAM
+    showMultiGpuWarning(true);
+}
+
 function showMultiGpuWarning(show) {
     const warningBanner = document.getElementById('multiGpuWarning');
     if (warningBanner) {
@@ -1629,6 +1644,35 @@ function analyzeModelAndRecommendSettings() {
         output.push('💡 Detected large model (30B+): Large Model Dual GPU preset strongly recommended');
         if (parseInt(contextSizeInput.value) > 8192) {
             output.push('⚠️ Large context with big model may require CPU offloading');
+        }
+    }
+    
+    // Check for multi-part models and add VRAM recommendations
+    const selectedOption = modelPathSelect.options[modelPathSelect.selectedIndex];
+    if (selectedOption && selectedOption.dataset) {
+        const isMultiPart = selectedOption.text.includes('(') && selectedOption.text.includes('parts)');
+        const fileSizeText = selectedOption.text.match(/(\d+(?:,\d+)*)\s*MB/);
+        
+        if (isMultiPart && fileSizeText) {
+            const fileSizeMB = parseInt(fileSizeText[1].replace(/,/g, ''));
+            const fileSizeGB = Math.round(fileSizeMB / 1024);
+            
+            if (fileSizeGB > 50) {
+                output.push(`🚀 Multi-part model detected (${fileSizeGB}GB): Consider reducing GPU layers for 24GB cards`);
+                
+                // Auto-suggest conservative GPU layer count for large models
+                if (parseInt(nglInput.value) >= 99 && fileSizeGB > 50) {
+                    const suggestedLayers = fileSizeGB > 80 ? 25 : fileSizeGB > 60 ? 35 : 45;
+                    output.push(`💾 Recommended GPU layers: ${suggestedLayers} (currently set to ${nglInput.value})`);
+                    
+                    // Detect high-RAM systems and recommend hybrid loading
+                    if (fileSizeGB > 60 && navigator.deviceMemory && navigator.deviceMemory >= 64) {
+                        output.push(`🚀 High RAM system detected (≥64GB): Try "High RAM Hybrid (128GB+)" preset for optimal performance`);
+                    } else if (fileSizeGB > 60) {
+                        output.push(`💡 For large models like this, consider "High RAM Hybrid (128GB+)" preset if you have ≥64GB DDR5 RAM`);
+                    }
+                }
+            }
         }
     }
     
@@ -1732,6 +1776,7 @@ async function init() {
     presetBalancedDualBtn.addEventListener('click', applyBalancedDualGPU);
     presetLargeModelBtn.addEventListener('click', applyLargeModelDualGPU);
     presetCpuOffloadBtn.addEventListener('click', applyCpuOffloadHybrid);
+    presetHighRamHybridBtn.addEventListener('click', applyHighRamHybrid);
     
     // Set up theme toggle event listener
     themeToggle.addEventListener('click', toggleTheme);

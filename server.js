@@ -590,7 +590,7 @@ function groupMultiPartModels(ggufFiles) {
     const standaloneModels = [];
     
     // Pattern to detect multi-part models: ends with -00001-of-00002, -00002-of-00002, etc.
-    const multiPartPattern = /^(.*?)-(\d{5})-of-(\d{5})\.gguf$/i;
+    const multiPartPattern = /^(.*?)-(\d{1,5})-of-(\d{1,5})$/i;
     
     for (const model of ggufFiles) {
         const match = model.name.match(multiPartPattern);
@@ -1127,10 +1127,35 @@ app.post('/start', (req, res) => {
         });
     }
     
+    // Process args to handle multi-part models
+    const processedArgs = [];
+    for (let i = 0; i < args.length; i++) {
+        if (args[i] === '-m' && i + 1 < args.length) {
+            let modelPath = args[i + 1];
+            
+            // Check if this is a multi-part model path
+            const multiPartPattern = /^(.*)-\d{1,5}-of-\d{1,5}\.gguf$/i;
+            const match = modelPath.match(multiPartPattern);
+            
+            if (match) {
+                // Extract base path without the part number
+                const basePath = match[1] + '.gguf';
+                console.log(`Multi-part model detected: ${modelPath} -> ${basePath}`);
+                processedArgs.push(args[i], basePath);
+                i++; // Skip the next argument since we processed it
+            } else {
+                processedArgs.push(args[i], modelPath);
+                i++; // Skip the next argument since we processed it
+            }
+        } else {
+            processedArgs.push(args[i]);
+        }
+    }
+    
     // Start the server using spawn for better process control
     try {
-        console.log('Starting server with args:', args);
-        runningProcess = spawn(serverPath, args, { stdio: 'pipe' });
+        console.log('Starting server with processed args:', processedArgs);
+        runningProcess = spawn(serverPath, processedArgs, { stdio: 'pipe' });
         
         // Handle process events
         runningProcess.on('close', (code) => {

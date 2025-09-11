@@ -99,7 +99,7 @@
                     <div class="form-group">
                         <label for="ngl">GPU Layers (-ngl):
                             <span class="help-icon">
-                                <div class="tooltip">Number of model layers to offload to GPU. Use 99 to offload all layers. Reduce if you run out of VRAM.</div>
+                                <div class="tooltip">Number of model layers to offload to GPU. Use 99 to offload all layers. For large models (>50GB) on 24GB cards, try 30-50 layers to avoid VRAM overflow.</div>
                             </span>
                         </label>
                         <input type="number" id="ngl" class="form-control" min="0" value="99">
@@ -120,6 +120,7 @@
                         <button type="button" id="presetBalancedDual" class="btn btn-outline-primary">Balanced Dual GPU</button>
                         <button type="button" id="presetLargeModel" class="btn btn-outline-primary">Large Model Dual GPU</button>
                         <button type="button" id="presetCpuOffload" class="btn btn-outline-primary">CPU Offload Hybrid</button>
+                        <button type="button" id="presetHighRamHybrid" class="btn btn-outline-success">High RAM Hybrid (128GB+)</button>
                     </div>
                         </div>
 
@@ -243,7 +244,7 @@
                                 <div class="form-group">
                                     <label for="mlock">Memory Lock (--mlock):
                                         <span class="help-icon">
-                                            <div class="tooltip">Prevents model from being swapped to disk. Keeps model in RAM for consistent performance. Use if you have sufficient RAM.</div>
+                                            <div class="tooltip">Prevents model from being swapped to disk. Essential for hybrid GPU/CPU loading with fast DDR5 RAM (64GB+). Keeps model layers consistently in RAM for optimal performance. Recommended for high-RAM systems running large models.</div>
                                         </span>
                                     </label>
                                     <input type="checkbox" id="mlock" class="form-control checkbox">
