@@ -1,0 +1,34 @@
+{
+  "currentVersion": {
+    "build": "b6133",
+    "platform": "win-cuda-12.4-x64",
+    "zipFilename": "llama-b6133-bin-win-cuda-12.4-x64.zip",
+    "detectionMethod": "zip_filename"
+  },
+  "platform": "win-cuda-12.4-x64",
+  "installPath": "C:\\Users\\dimitri\\Downloads\\Software\\AI\\Llama-cpp",
+  "settings": {
+    "autoCheckEnabled": false,
+    "keepBackups": 3
+  },
+  "lastCheck": {
+    "timestamp": "2025-11-28T19:15:58.596Z",
+    "latestVersion": "b7190",
+    "updateAvailable": true,
+    "buildsBehind": 1057,
+    "asset": {
+      "name": "llama-b7190-bin-win-cuda-12.4-x64.zip",
+      "size": 184270503,
+      "downloadUrl": "https://github.com/ggml-org/llama.cpp/releases/download/b7190/llama-b7190-bin-win-cuda-12.4-x64.zip"
+    }
+  },
+  "updateHistory": [
+    {
+      "from": "b6133",
+      "to": "b7189",
+      "date": "2025-11-28T18:42:21.823Z",
+      "backupPath": "llama-backup-b6133-2025-11-28T18-42-19"
+    }
+  ],
+  "pendingUpdate": null
+}
