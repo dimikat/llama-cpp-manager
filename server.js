@@ -5,6 +5,9 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const os = require('os');
 const osUtils = require('os-utils');
+const crypto = require('crypto');
+const https = require('https');
+const AdmZip = require('adm-zip');
 const app = express();
 const PORT = 7112;
 
@@ -675,9 +678,8 @@ function groupMultiPartModels(ggufFiles) {
 
 async function findGGUFFiles(directory) {
     const ggufFiles = [];
-    const defaultModelsPath = process.env.LM_STUDIO_MODELS_PATH || 
-                          path.join(os.homedir(), '.cache', 'lm-studio', 'models');
-    const basePath = directory || defaultModelsPath;
+    // Use the active models path from settings if no directory specified
+    const basePath = directory || await getActiveModelsPath();
     
     try {
         // Check if directory exists
@@ -740,6 +742,242 @@ async function findGGUFFiles(directory) {
 
 // Configuration management
 const CONFIGS_FILE = path.join(__dirname, 'data', 'user_configs.json');
+const APP_SETTINGS_FILE = path.join(__dirname, 'data', 'app_settings.json');
+
+// ============================================
+// App Settings Management (Models Directory)
+// ============================================
+
+// Load app settings from file
+async function loadAppSettings() {
+    try {
+        await fs.access(APP_SETTINGS_FILE);
+        const data = await fs.readFile(APP_SETTINGS_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        // If file doesn't exist, return default structure
+        const defaultSettings = {
+            modelsPath: {
+                source: "lmstudio",
+                customPath: ""
+            },
+            version: "1.0"
+        };
+        await saveAppSettings(defaultSettings);
+        return defaultSettings;
+    }
+}
+
+// Save app settings to file
+async function saveAppSettings(settings) {
+    try {
+        await fs.writeFile(APP_SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
+        return true;
+    } catch (error) {
+        console.error('Error saving app settings:', error);
+        return false;
+    }
+}
+
+// ============================================
+// Models Path Detection Functions
+// ============================================
+
+// Detect LM Studio models path
+async function detectLMStudioPath() {
+    const result = { found: false, path: null, source: 'fallback' };
+
+    try {
+        // Try to read LM Studio's settings.json
+        const appDataPath = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+        const lmStudioSettingsPath = path.join(appDataPath, 'LM Studio', 'settings.json');
+
+        try {
+            await fs.access(lmStudioSettingsPath);
+            const settingsData = await fs.readFile(lmStudioSettingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+
+            if (settings.downloadsFolder) {
+                // Check if the path exists
+                await fs.access(settings.downloadsFolder);
+                result.found = true;
+                result.path = settings.downloadsFolder;
+                result.source = 'config';
+                return result;
+            }
+        } catch (e) {
+            // Config file not found or invalid, try fallback
+        }
+
+        // Fallback to default LM Studio location
+        const fallbackPath = path.join(os.homedir(), '.lmstudio', 'models');
+        try {
+            await fs.access(fallbackPath);
+            result.found = true;
+            result.path = fallbackPath;
+            result.source = 'fallback';
+        } catch (e) {
+            // Also try the old cache location
+            const oldCachePath = path.join(os.homedir(), '.cache', 'lm-studio', 'models');
+            try {
+                await fs.access(oldCachePath);
+                result.found = true;
+                result.path = oldCachePath;
+                result.source = 'fallback';
+            } catch (e2) {
+                // Neither location exists
+            }
+        }
+    } catch (error) {
+        console.error('Error detecting LM Studio path:', error);
+    }
+
+    return result;
+}
+
+// Detect Ollama models path
+async function detectOllamaPath() {
+    const result = { found: false, path: null, source: 'fallback' };
+
+    try {
+        // Check OLLAMA_MODELS environment variable first
+        if (process.env.OLLAMA_MODELS) {
+            try {
+                await fs.access(process.env.OLLAMA_MODELS);
+                result.found = true;
+                result.path = process.env.OLLAMA_MODELS;
+                result.source = 'env';
+                return result;
+            } catch (e) {
+                // Env var set but path doesn't exist
+            }
+        }
+
+        // Fallback to default Ollama location
+        const fallbackPath = path.join(os.homedir(), '.ollama', 'models');
+        try {
+            await fs.access(fallbackPath);
+            result.found = true;
+            result.path = fallbackPath;
+            result.source = 'fallback';
+        } catch (e) {
+            // Path doesn't exist
+        }
+    } catch (error) {
+        console.error('Error detecting Ollama path:', error);
+    }
+
+    return result;
+}
+
+// Detect GPT4All models path
+async function detectGPT4AllPath() {
+    const result = { found: false, path: null, source: 'fallback' };
+
+    try {
+        // GPT4All stores models in LocalAppData on Windows
+        const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+        const gpt4allPath = path.join(localAppData, 'nomic.ai', 'GPT4All');
+
+        try {
+            await fs.access(gpt4allPath);
+            result.found = true;
+            result.path = gpt4allPath;
+            result.source = 'fallback';
+        } catch (e) {
+            // Path doesn't exist
+        }
+    } catch (error) {
+        console.error('Error detecting GPT4All path:', error);
+    }
+
+    return result;
+}
+
+// Detect Jan.ai models path
+async function detectJanPath() {
+    const result = { found: false, path: null, source: 'fallback' };
+
+    try {
+        // Jan stores models in AppData/Roaming/Jan/data/models
+        const appDataPath = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+        const janModelsPath = path.join(appDataPath, 'Jan', 'data', 'models');
+
+        try {
+            await fs.access(janModelsPath);
+            result.found = true;
+            result.path = janModelsPath;
+            result.source = 'fallback';
+        } catch (e) {
+            // Path doesn't exist
+        }
+    } catch (error) {
+        console.error('Error detecting Jan path:', error);
+    }
+
+    return result;
+}
+
+// Detect all available model paths
+async function detectAllModelPaths() {
+    const [lmstudio, ollama, gpt4all, jan] = await Promise.all([
+        detectLMStudioPath(),
+        detectOllamaPath(),
+        detectGPT4AllPath(),
+        detectJanPath()
+    ]);
+
+    return {
+        lmstudio,
+        ollama,
+        gpt4all,
+        jan
+    };
+}
+
+// Get the active models path based on settings
+async function getActiveModelsPath() {
+    const settings = await loadAppSettings();
+    const source = settings.modelsPath?.source || 'lmstudio';
+
+    if (source === 'custom') {
+        const customPath = settings.modelsPath?.customPath;
+        if (customPath) {
+            try {
+                await fs.access(customPath);
+                return customPath;
+            } catch (e) {
+                console.warn('Custom models path not accessible:', customPath);
+            }
+        }
+        // Fall through to LM Studio if custom path is invalid
+    }
+
+    // Detect path based on source
+    let detection;
+    switch (source) {
+        case 'ollama':
+            detection = await detectOllamaPath();
+            break;
+        case 'gpt4all':
+            detection = await detectGPT4AllPath();
+            break;
+        case 'jan':
+            detection = await detectJanPath();
+            break;
+        case 'lmstudio':
+        default:
+            detection = await detectLMStudioPath();
+            break;
+    }
+
+    if (detection.found) {
+        return detection.path;
+    }
+
+    // Ultimate fallback
+    return path.join(os.homedir(), '.cache', 'lm-studio', 'models');
+}
 
 // Load configurations from file
 async function loadConfigurationsFromFile() {
@@ -830,6 +1068,108 @@ function validateConfiguration(config) {
 function generateConfigId() {
     return 'config_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
+
+// ============================================
+// App Settings API Endpoints
+// ============================================
+
+// GET /api/settings - Get current app settings
+app.get('/api/settings', async (req, res) => {
+    try {
+        const settings = await loadAppSettings();
+        const activePath = await getActiveModelsPath();
+        res.json({
+            success: true,
+            settings: settings,
+            activePath: activePath
+        });
+    } catch (error) {
+        console.error('Error loading app settings:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to load app settings'
+        });
+    }
+});
+
+// PUT /api/settings - Update app settings
+app.put('/api/settings', async (req, res) => {
+    try {
+        const { modelsPath } = req.body;
+
+        if (!modelsPath || !modelsPath.source) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid settings: modelsPath.source is required'
+            });
+        }
+
+        const validSources = ['lmstudio', 'ollama', 'gpt4all', 'jan', 'custom'];
+        if (!validSources.includes(modelsPath.source)) {
+            return res.status(400).json({
+                success: false,
+                error: `Invalid source. Must be one of: ${validSources.join(', ')}`
+            });
+        }
+
+        if (modelsPath.source === 'custom' && !modelsPath.customPath) {
+            return res.status(400).json({
+                success: false,
+                error: 'Custom path is required when source is "custom"'
+            });
+        }
+
+        const settings = await loadAppSettings();
+        settings.modelsPath = {
+            source: modelsPath.source,
+            customPath: modelsPath.customPath || ''
+        };
+
+        const saved = await saveAppSettings(settings);
+        if (!saved) {
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to save settings'
+            });
+        }
+
+        const activePath = await getActiveModelsPath();
+        res.json({
+            success: true,
+            settings: settings,
+            activePath: activePath
+        });
+    } catch (error) {
+        console.error('Error updating app settings:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update app settings'
+        });
+    }
+});
+
+// GET /api/settings/detect-paths - Detect all available model paths
+app.get('/api/settings/detect-paths', async (req, res) => {
+    try {
+        const paths = await detectAllModelPaths();
+        const settings = await loadAppSettings();
+        const activePath = await getActiveModelsPath();
+
+        res.json({
+            success: true,
+            paths: paths,
+            currentSource: settings.modelsPath?.source || 'lmstudio',
+            customPath: settings.modelsPath?.customPath || '',
+            activePath: activePath
+        });
+    } catch (error) {
+        console.error('Error detecting model paths:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to detect model paths'
+        });
+    }
+});
 
 // API endpoint to get all configurations
 app.get('/api/configs', async (req, res) => {
@@ -1102,6 +1442,784 @@ app.post('/api/configs/migrate', async (req, res) => {
         });
     }
 });
+
+// ============================================
+// LLAMA.CPP AUTO-UPDATER MODULE
+// ============================================
+
+const UPDATER_STATE_FILE = path.join(__dirname, 'data', 'updater_state.json');
+const GITHUB_RELEASES_API = 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest';
+
+// Updater state for tracking downloads in progress
+let updaterDownloadState = {
+    inProgress: false,
+    version: null,
+    progress: 0,
+    downloadedBytes: 0,
+    totalBytes: 0
+};
+
+// Load updater state from file
+async function loadUpdaterState() {
+    try {
+        await fs.access(UPDATER_STATE_FILE);
+        const data = await fs.readFile(UPDATER_STATE_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        // Return default state if file doesn't exist
+        return {
+            currentVersion: null,
+            platform: null,
+            installPath: null,
+            settings: {
+                autoCheckEnabled: false,
+                keepBackups: 3
+            },
+            lastCheck: null,
+            updateHistory: [],
+            pendingUpdate: null
+        };
+    }
+}
+
+// Save updater state to file
+async function saveUpdaterState(state) {
+    try {
+        const dataDir = path.join(__dirname, 'data');
+        try {
+            await fs.access(dataDir);
+        } catch {
+            await fs.mkdir(dataDir, { recursive: true });
+        }
+        await fs.writeFile(UPDATER_STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+        return true;
+    } catch (error) {
+        console.error('Error saving updater state:', error);
+        return false;
+    }
+}
+
+// Detect llama.cpp version from installation directory
+async function detectLlamaCppVersion(installPath) {
+    if (!installPath) return null;
+
+    try {
+        const files = await fs.readdir(installPath);
+
+        // Strategy 1: Look for existing zip file with version in name
+        const zipPattern = /^llama-b(\d+)-bin-(.+)\.zip$/i;
+        for (const file of files) {
+            const match = file.match(zipPattern);
+            if (match) {
+                return {
+                    build: 'b' + match[1],
+                    platform: match[2],
+                    zipFilename: file,
+                    detectionMethod: 'zip_filename'
+                };
+            }
+        }
+
+        // Strategy 2: Detect platform from DLL files
+        const platform = await detectPlatformFromFiles(installPath, files);
+        if (platform) {
+            return {
+                build: null, // Unknown version
+                platform: platform,
+                zipFilename: null,
+                detectionMethod: 'dll_detection'
+            };
+        }
+
+        return null;
+    } catch (error) {
+        console.error('Error detecting llama.cpp version:', error);
+        return null;
+    }
+}
+
+// Detect platform type from DLL files in installation directory
+async function detectPlatformFromFiles(installPath, files) {
+    const fileSet = new Set(files.map(f => f.toLowerCase()));
+
+    // Check for CUDA
+    if (fileSet.has('ggml-cuda.dll') || fileSet.has('libggml-cuda.so')) {
+        // Try to determine CUDA version from dll name patterns
+        for (const file of files) {
+            if (file.toLowerCase().includes('cuda')) {
+                // Default to cuda-12.4 as it's most common recent version
+                return 'win-cuda-12.4-x64';
+            }
+        }
+        return 'win-cuda-12.4-x64'; // Default CUDA
+    }
+
+    // Check for Vulkan
+    if (fileSet.has('ggml-vulkan.dll') || fileSet.has('libggml-vulkan.so')) {
+        return 'win-vulkan-x64';
+    }
+
+    // Check for RPC
+    if (fileSet.has('ggml-rpc.dll')) {
+        return 'win-cuda-12.4-x64'; // RPC usually comes with CUDA builds
+    }
+
+    // Check for HIP/ROCm (AMD)
+    if (files.some(f => f.toLowerCase().includes('hip') || f.toLowerCase().includes('rocm'))) {
+        return 'win-hip-x64';
+    }
+
+    // Default to CPU-only Windows build
+    if (fileSet.has('llama-server.exe') || fileSet.has('llama.dll')) {
+        return 'win-x64';
+    }
+
+    return null;
+}
+
+// Fetch latest release info from GitHub
+async function fetchLatestRelease() {
+    return new Promise((resolve, reject) => {
+        const options = {
+            hostname: 'api.github.com',
+            path: '/repos/ggml-org/llama.cpp/releases/latest',
+            method: 'GET',
+            headers: {
+                'User-Agent': 'llama-cpp-manager',
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        };
+
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    if (res.statusCode === 200) {
+                        resolve(JSON.parse(data));
+                    } else {
+                        reject(new Error(`GitHub API returned ${res.statusCode}: ${data}`));
+                    }
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        });
+
+        req.on('error', reject);
+        req.setTimeout(30000, () => {
+            req.destroy();
+            reject(new Error('Request timeout'));
+        });
+        req.end();
+    });
+}
+
+// Find asset matching platform
+function findMatchingAsset(release, platform) {
+    if (!release.assets || !platform) return null;
+
+    // Build expected asset name pattern
+    const version = release.tag_name;
+    const expectedName = `llama-${version}-bin-${platform}.zip`;
+
+    // Try exact match first
+    let asset = release.assets.find(a => a.name === expectedName);
+    if (asset) return asset;
+
+    // Try partial match (platform without x64 suffix, etc.)
+    const platformBase = platform.replace(/-x64$/, '');
+    asset = release.assets.find(a =>
+        a.name.includes(platformBase) && a.name.endsWith('.zip')
+    );
+
+    return asset;
+}
+
+// Compare build numbers (b1234 format)
+function compareBuildNumbers(current, latest) {
+    if (!current || !latest) return null;
+
+    const currentNum = parseInt(current.replace(/^b/i, ''));
+    const latestNum = parseInt(latest.replace(/^b/i, ''));
+
+    if (isNaN(currentNum) || isNaN(latestNum)) return null;
+
+    return {
+        current: currentNum,
+        latest: latestNum,
+        updateAvailable: latestNum > currentNum,
+        buildsBehind: latestNum - currentNum
+    };
+}
+
+// Calculate SHA256 hash of a file
+async function calculateFileHash(filePath) {
+    return new Promise((resolve, reject) => {
+        const hash = crypto.createHash('sha256');
+        const stream = fsSync.createReadStream(filePath);
+        stream.on('data', data => hash.update(data));
+        stream.on('end', () => resolve(hash.digest('hex')));
+        stream.on('error', reject);
+    });
+}
+
+// Download file with progress callback
+async function downloadFileWithProgress(url, destPath, onProgress) {
+    return new Promise((resolve, reject) => {
+        let file = null;
+        let downloadedBytes = 0;
+        let totalBytes = 0;
+
+        const makeRequest = (requestUrl, redirectCount = 0) => {
+            if (redirectCount > 5) {
+                reject(new Error('Too many redirects'));
+                return;
+            }
+
+            const urlObj = new URL(requestUrl);
+            const options = {
+                hostname: urlObj.hostname,
+                path: urlObj.pathname + urlObj.search,
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'llama-cpp-manager'
+                }
+            };
+
+            console.log(`Download request to: ${urlObj.hostname}${urlObj.pathname.substring(0, 50)}...`);
+
+            const req = https.request(options, (res) => {
+                console.log(`Response status: ${res.statusCode}`);
+
+                // Handle redirects
+                if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                    console.log(`Redirecting to: ${res.headers.location.substring(0, 80)}...`);
+                    res.resume(); // Consume response to free up memory
+                    makeRequest(res.headers.location, redirectCount + 1);
+                    return;
+                }
+
+                if (res.statusCode !== 200) {
+                    reject(new Error(`Download failed with status ${res.statusCode}`));
+                    return;
+                }
+
+                // Now create the file stream after we've followed all redirects
+                file = fsSync.createWriteStream(destPath);
+                totalBytes = parseInt(res.headers['content-length'], 10) || 0;
+                console.log(`Starting download: ${totalBytes} bytes`);
+
+                res.on('data', (chunk) => {
+                    downloadedBytes += chunk.length;
+                    if (onProgress) {
+                        onProgress(downloadedBytes, totalBytes);
+                    }
+                });
+
+                res.pipe(file);
+
+                file.on('finish', () => {
+                    file.close();
+                    console.log(`Download complete: ${downloadedBytes} bytes`);
+                    resolve({ downloadedBytes, totalBytes });
+                });
+
+                file.on('error', (err) => {
+                    file.close();
+                    try { fsSync.unlinkSync(destPath); } catch {}
+                    reject(err);
+                });
+            });
+
+            req.on('error', (err) => {
+                if (file) {
+                    file.close();
+                    try { fsSync.unlinkSync(destPath); } catch {}
+                }
+                reject(err);
+            });
+
+            req.setTimeout(600000, () => { // 10 minute timeout for large downloads
+                req.destroy();
+                reject(new Error('Download timeout'));
+            });
+
+            req.end();
+        };
+
+        makeRequest(url);
+    });
+}
+
+// Create backup of current installation
+async function createBackup(installPath, currentVersion) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const backupName = `llama-backup-${currentVersion || 'unknown'}-${timestamp}`;
+    const backupPath = path.join(installPath, backupName);
+
+    try {
+        await fs.mkdir(backupPath, { recursive: true });
+
+        // List of file extensions to backup
+        const backupExtensions = ['.exe', '.dll', '.so', '.dylib'];
+        const files = await fs.readdir(installPath);
+
+        const manifest = {
+            created: new Date().toISOString(),
+            version: currentVersion,
+            files: []
+        };
+
+        for (const file of files) {
+            const ext = path.extname(file).toLowerCase();
+            if (backupExtensions.includes(ext)) {
+                const srcPath = path.join(installPath, file);
+                const destPath = path.join(backupPath, file);
+
+                // Skip directories and backup folders
+                const stat = await fs.stat(srcPath);
+                if (stat.isFile()) {
+                    await fs.copyFile(srcPath, destPath);
+                    const hash = await calculateFileHash(srcPath);
+                    manifest.files.push({ name: file, hash, size: stat.size });
+                }
+            }
+        }
+
+        // Save manifest
+        await fs.writeFile(
+            path.join(backupPath, 'manifest.json'),
+            JSON.stringify(manifest, null, 2)
+        );
+
+        return { success: true, backupPath, backupName, fileCount: manifest.files.length };
+    } catch (error) {
+        console.error('Error creating backup:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// API: Get updater status
+app.get('/api/updater/status', async (req, res) => {
+    try {
+        const state = await loadUpdaterState();
+
+        res.json({
+            success: true,
+            currentVersion: state.currentVersion?.build || null,
+            platform: state.currentVersion?.platform || state.platform,
+            installPath: state.installPath,
+            lastChecked: state.lastCheck?.timestamp || null,
+            latestVersion: state.lastCheck?.latestVersion || null,
+            updateAvailable: state.lastCheck?.updateAvailable || false,
+            pendingUpdate: state.pendingUpdate,
+            downloadInProgress: updaterDownloadState.inProgress,
+            downloadProgress: updaterDownloadState.progress
+        });
+    } catch (error) {
+        console.error('Error getting updater status:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// API: Check for updates
+app.get('/api/updater/check', async (req, res) => {
+    try {
+        let state = await loadUpdaterState();
+
+        // Auto-detect install path from server path if not set
+        if (!state.installPath && req.query.serverPath) {
+            state.installPath = path.dirname(req.query.serverPath);
+        }
+
+        // Try to detect version if not already known
+        if (!state.currentVersion && state.installPath) {
+            const detected = await detectLlamaCppVersion(state.installPath);
+            if (detected) {
+                state.currentVersion = detected;
+                state.platform = detected.platform;
+            }
+        }
+
+        // Fetch latest release from GitHub
+        const release = await fetchLatestRelease();
+        const latestVersion = release.tag_name;
+
+        // Find matching asset for user's platform
+        const asset = findMatchingAsset(release, state.currentVersion?.platform || state.platform);
+
+        // Compare versions
+        const comparison = compareBuildNumbers(
+            state.currentVersion?.build,
+            latestVersion
+        );
+
+        // Update state with check results
+        state.lastCheck = {
+            timestamp: new Date().toISOString(),
+            latestVersion: latestVersion,
+            updateAvailable: comparison?.updateAvailable || false,
+            buildsBehind: comparison?.buildsBehind || null,
+            asset: asset ? {
+                name: asset.name,
+                size: asset.size,
+                downloadUrl: asset.browser_download_url
+            } : null
+        };
+
+        await saveUpdaterState(state);
+
+        res.json({
+            success: true,
+            currentVersion: state.currentVersion?.build || 'unknown',
+            latestVersion: latestVersion,
+            updateAvailable: comparison?.updateAvailable || false,
+            buildsBehind: comparison?.buildsBehind || null,
+            platform: state.currentVersion?.platform || state.platform,
+            detectionMethod: state.currentVersion?.detectionMethod || 'none',
+            asset: state.lastCheck.asset,
+            releaseUrl: release.html_url
+        });
+
+    } catch (error) {
+        console.error('Error checking for updates:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// API: Set install path and detect version
+app.post('/api/updater/configure', async (req, res) => {
+    try {
+        const { installPath, platform } = req.body;
+
+        if (!installPath) {
+            return res.status(400).json({ success: false, error: 'Install path is required' });
+        }
+
+        // Verify path exists
+        try {
+            await fs.access(installPath);
+        } catch {
+            return res.status(400).json({ success: false, error: 'Install path does not exist' });
+        }
+
+        let state = await loadUpdaterState();
+        state.installPath = installPath;
+
+        // Try to detect version
+        const detected = await detectLlamaCppVersion(installPath);
+        if (detected) {
+            state.currentVersion = detected;
+            state.platform = detected.platform;
+        } else if (platform) {
+            // Use manually specified platform
+            state.platform = platform;
+            state.currentVersion = { build: null, platform: platform, detectionMethod: 'manual' };
+        }
+
+        await saveUpdaterState(state);
+
+        res.json({
+            success: true,
+            currentVersion: state.currentVersion,
+            platform: state.platform,
+            installPath: state.installPath
+        });
+
+    } catch (error) {
+        console.error('Error configuring updater:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// API: Download update
+app.post('/api/updater/download', async (req, res) => {
+    try {
+        if (updaterDownloadState.inProgress) {
+            return res.status(400).json({
+                success: false,
+                error: 'Download already in progress'
+            });
+        }
+
+        const state = await loadUpdaterState();
+
+        if (!state.lastCheck?.asset) {
+            return res.status(400).json({
+                success: false,
+                error: 'No update available. Please check for updates first.'
+            });
+        }
+
+        const { downloadUrl, name, size } = state.lastCheck.asset;
+        const version = state.lastCheck.latestVersion;
+
+        // Create downloads directory
+        const downloadsDir = path.join(__dirname, 'data', 'updates', version);
+        await fs.mkdir(downloadsDir, { recursive: true });
+
+        const destPath = path.join(downloadsDir, name);
+
+        // Set download state
+        updaterDownloadState = {
+            inProgress: true,
+            version: version,
+            progress: 0,
+            downloadedBytes: 0,
+            totalBytes: size
+        };
+
+        // Start download in background
+        res.json({
+            success: true,
+            message: 'Download started',
+            version: version,
+            filename: name
+        });
+
+        // Perform download with progress updates via Socket.IO
+        try {
+            await downloadFileWithProgress(downloadUrl, destPath, (downloaded, total) => {
+                updaterDownloadState.downloadedBytes = downloaded;
+                updaterDownloadState.totalBytes = total;
+                updaterDownloadState.progress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+
+                // Broadcast progress to all connected clients
+                connectedClients.forEach(client => {
+                    client.emit('update-progress', {
+                        version: version,
+                        downloaded: downloaded,
+                        total: total,
+                        progress: updaterDownloadState.progress
+                    });
+                });
+            });
+
+            // Download complete - update state
+            state.pendingUpdate = {
+                version: version,
+                downloadPath: destPath,
+                downloadedAt: new Date().toISOString(),
+                verified: false,
+                filename: name
+            };
+
+            await saveUpdaterState(state);
+
+            // Notify clients download is complete
+            connectedClients.forEach(client => {
+                client.emit('update-downloaded', {
+                    success: true,
+                    version: version,
+                    path: destPath
+                });
+            });
+
+        } catch (downloadError) {
+            console.error('Download error:', downloadError);
+            connectedClients.forEach(client => {
+                client.emit('update-error', {
+                    error: downloadError.message
+                });
+            });
+        } finally {
+            updaterDownloadState.inProgress = false;
+        }
+
+    } catch (error) {
+        console.error('Error initiating download:', error);
+        updaterDownloadState.inProgress = false;
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// API: Apply update
+app.post('/api/updater/apply', async (req, res) => {
+    try {
+        // Check if server is running
+        if (runningProcess && !runningProcess.killed) {
+            return res.status(400).json({
+                success: false,
+                error: 'Cannot apply update while llama-server is running. Please stop the server first.'
+            });
+        }
+
+        const state = await loadUpdaterState();
+
+        if (!state.pendingUpdate) {
+            return res.status(400).json({
+                success: false,
+                error: 'No pending update to apply. Please download an update first.'
+            });
+        }
+
+        if (!state.installPath) {
+            return res.status(400).json({
+                success: false,
+                error: 'Install path not configured. Please configure the updater first.'
+            });
+        }
+
+        const { downloadPath, version } = state.pendingUpdate;
+
+        // Verify download exists
+        try {
+            await fs.access(downloadPath);
+        } catch {
+            return res.status(400).json({
+                success: false,
+                error: 'Downloaded update file not found. Please download again.'
+            });
+        }
+
+        // Create backup
+        console.log('Creating backup of current installation...');
+        const backupResult = await createBackup(
+            state.installPath,
+            state.currentVersion?.build || 'unknown'
+        );
+
+        if (!backupResult.success) {
+            return res.status(500).json({
+                success: false,
+                error: `Failed to create backup: ${backupResult.error}`
+            });
+        }
+
+        console.log(`Backup created: ${backupResult.backupName} (${backupResult.fileCount} files)`);
+
+        // Extract update
+        console.log('Extracting update...');
+        try {
+            const zip = new AdmZip(downloadPath);
+            const zipEntries = zip.getEntries();
+
+            // Extract files, handling nested directory structure
+            for (const entry of zipEntries) {
+                if (!entry.isDirectory) {
+                    const filename = path.basename(entry.entryName);
+                    const ext = path.extname(filename).toLowerCase();
+
+                    // Only extract executables and libraries
+                    if (['.exe', '.dll', '.so', '.dylib', '.txt', '.md'].includes(ext) ||
+                        filename.startsWith('LICENSE')) {
+                        const destPath = path.join(state.installPath, filename);
+
+                        // Try to write the file, retry if locked
+                        let retries = 3;
+                        while (retries > 0) {
+                            try {
+                                const content = entry.getData();
+                                await fs.writeFile(destPath, content);
+                                console.log(`Extracted: ${filename}`);
+                                break;
+                            } catch (writeError) {
+                                retries--;
+                                if (retries === 0) {
+                                    console.error(`Failed to write ${filename}: ${writeError.message}`);
+                                } else {
+                                    await new Promise(resolve => setTimeout(resolve, 1000));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+        } catch (extractError) {
+            console.error('Extraction error:', extractError);
+            return res.status(500).json({
+                success: false,
+                error: `Failed to extract update: ${extractError.message}`,
+                backupPath: backupResult.backupPath
+            });
+        }
+
+        // Copy the new zip file to install directory for future version detection
+        const newZipPath = path.join(state.installPath, state.pendingUpdate.filename);
+        try {
+            await fs.copyFile(downloadPath, newZipPath);
+        } catch (copyError) {
+            console.warn('Could not copy zip file for version tracking:', copyError.message);
+        }
+
+        // Update state
+        const previousVersion = state.currentVersion?.build;
+        state.currentVersion = {
+            build: version,
+            platform: state.currentVersion?.platform || state.platform,
+            zipFilename: state.pendingUpdate.filename,
+            installedDate: new Date().toISOString(),
+            detectionMethod: 'updated'
+        };
+
+        // Add to update history
+        state.updateHistory = state.updateHistory || [];
+        state.updateHistory.unshift({
+            from: previousVersion || 'unknown',
+            to: version,
+            date: new Date().toISOString(),
+            backupPath: backupResult.backupName
+        });
+
+        // Keep only last N history entries based on settings
+        const keepBackups = state.settings?.keepBackups || 3;
+        if (state.updateHistory.length > keepBackups) {
+            state.updateHistory = state.updateHistory.slice(0, keepBackups);
+        }
+
+        // Clear pending update
+        state.pendingUpdate = null;
+        state.lastCheck = null;
+
+        await saveUpdaterState(state);
+
+        // Clean up download directory
+        try {
+            const downloadsDir = path.dirname(downloadPath);
+            await fs.rm(downloadsDir, { recursive: true });
+        } catch (cleanupError) {
+            console.warn('Could not clean up downloads directory:', cleanupError.message);
+        }
+
+        // Notify clients
+        connectedClients.forEach(client => {
+            client.emit('update-applied', {
+                success: true,
+                version: version,
+                previousVersion: previousVersion
+            });
+        });
+
+        res.json({
+            success: true,
+            message: `Successfully updated from ${previousVersion || 'unknown'} to ${version}`,
+            version: version,
+            previousVersion: previousVersion,
+            backupPath: backupResult.backupName
+        });
+
+    } catch (error) {
+        console.error('Error applying update:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// API: Get download progress
+app.get('/api/updater/progress', (req, res) => {
+    res.json({
+        inProgress: updaterDownloadState.inProgress,
+        version: updaterDownloadState.version,
+        progress: updaterDownloadState.progress,
+        downloadedBytes: updaterDownloadState.downloadedBytes,
+        totalBytes: updaterDownloadState.totalBytes
+    });
+});
+
+// ============================================
+// END LLAMA.CPP AUTO-UPDATER MODULE
+// ============================================
 
 // Serve the main page
 app.get('/', (req, res) => {

@@ -66,6 +66,10 @@
                                 <span class="tab-icon">🌐</span>
                                 <span class="tab-label">Network</span>
                             </button>
+                            <button class="tab-button" data-tab="updates">
+                                <span class="tab-icon">🔄</span>
+                                <span class="tab-label">Updates</span>
+                            </button>
                         </div>
                     </div>
 
@@ -83,11 +87,42 @@
                         <input type="text" id="serverPath" class="form-control" placeholder="Enter path to llama-server.exe">
                     </div>
 
-                    <h3>Model Configuration</h3>
+                    <h3>Models Directory</h3>
                     <div class="form-group">
-                        <label for="modelPath">Model Path (-m):
+                        <label for="modelsSource">Source:
                             <span class="help-icon">
-                                <div class="tooltip">Select the GGUF model file to load. Models are automatically detected from your LM Studio models directory and subdirectories.</div>
+                                <div class="tooltip">Select where to find your GGUF models. Auto-detect options will read the configured path from each tool. Use Custom to specify your own folder.</div>
+                            </span>
+                        </label>
+                        <select id="modelsSource" class="form-control">
+                            <option value="lmstudio">LM Studio (auto-detect)</option>
+                            <option value="ollama">Ollama (auto-detect)</option>
+                            <option value="gpt4all">GPT4All (auto-detect)</option>
+                            <option value="jan">Jan.ai (auto-detect)</option>
+                            <option value="custom">Custom Path</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="customPathGroup" style="display: none;">
+                        <label for="customModelsPath">Custom Path:
+                            <span class="help-icon">
+                                <div class="tooltip">Enter the full path to your models directory containing GGUF files.</div>
+                            </span>
+                        </label>
+                        <input type="text" id="customModelsPath" class="form-control" placeholder="Enter path to models folder">
+                    </div>
+                    <div class="form-group">
+                        <div class="models-path-info">
+                            <span class="path-label">Active path:</span>
+                            <span id="activeModelsPath" class="path-value">Detecting...</span>
+                        </div>
+                        <button type="button" id="refreshModelsBtn" class="btn btn-secondary btn-sm">Refresh Models</button>
+                    </div>
+
+                    <h3>Model Selection</h3>
+                    <div class="form-group">
+                        <label for="modelPath">Model (-m):
+                            <span class="help-icon">
+                                <div class="tooltip">Select the GGUF model file to load. Models are automatically detected from the models directory above.</div>
                             </span>
                         </label>
                         <select id="modelPath" class="form-control">
@@ -547,6 +582,99 @@
                                     </span>
                                 </label>
                                 <input type="number" id="writeTimeout" class="form-control" min="1" value="600" placeholder="Write timeout in seconds">
+                            </div>
+                        </div>
+
+                        <!-- Updates Tab -->
+                        <div class="tab-panel" id="tab-updates">
+                            <h3>llama.cpp Updates</h3>
+
+                            <!-- Version Info Section -->
+                            <div class="updater-version-section">
+                                <div class="version-card">
+                                    <div class="version-row">
+                                        <div class="version-item">
+                                            <span class="version-label">Current Version:</span>
+                                            <span id="updaterCurrentVersion" class="version-value">Checking...</span>
+                                        </div>
+                                        <div class="version-item">
+                                            <span class="version-label">Latest Version:</span>
+                                            <span id="updaterLatestVersion" class="version-value">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="version-row">
+                                        <div class="version-item">
+                                            <span class="version-label">Platform:</span>
+                                            <span id="updaterPlatform" class="version-value platform-badge">-</span>
+                                        </div>
+                                        <div class="version-item">
+                                            <span class="version-label">Status:</span>
+                                            <span id="updaterStatus" class="version-value status-badge">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Update Available Banner -->
+                            <div id="updateAvailableBanner" class="update-available-banner" style="display: none;">
+                                <div class="banner-content">
+                                    <span class="banner-icon">🎉</span>
+                                    <div class="banner-text">
+                                        <strong>Update Available!</strong>
+                                        <span id="updateBannerInfo">A new version is available</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="updater-actions">
+                                <button id="checkUpdatesBtn" class="btn btn-primary">
+                                    <span class="btn-icon">🔍</span> Check for Updates
+                                </button>
+                                <button id="downloadUpdateBtn" class="btn btn-success" disabled>
+                                    <span class="btn-icon">⬇️</span> Download Update
+                                </button>
+                                <button id="applyUpdateBtn" class="btn btn-warning" disabled>
+                                    <span class="btn-icon">📦</span> Apply Update
+                                </button>
+                            </div>
+
+                            <!-- Download Progress -->
+                            <div id="downloadProgressSection" class="download-progress-section" style="display: none;">
+                                <div class="progress-header">
+                                    <span class="progress-title">Downloading update...</span>
+                                    <span id="downloadProgressPercent" class="progress-percent">0%</span>
+                                </div>
+                                <div class="progress-bar-container">
+                                    <div id="downloadProgressBar" class="progress-bar" style="width: 0%"></div>
+                                </div>
+                                <div class="progress-details">
+                                    <span id="downloadProgressBytes">0 MB / 0 MB</span>
+                                </div>
+                            </div>
+
+                            <!-- Status Messages -->
+                            <div id="updaterMessages" class="updater-messages"></div>
+
+                            <!-- Configuration Section -->
+                            <div class="updater-config-section">
+                                <h4>Configuration</h4>
+                                <div class="form-group">
+                                    <label for="updaterInstallPath">llama.cpp Installation Path:
+                                        <span class="help-icon">
+                                            <div class="tooltip">Path to your llama.cpp installation directory (where llama-server.exe is located). Auto-detected from server path if not set.</div>
+                                        </span>
+                                    </label>
+                                    <div class="input-with-button">
+                                        <input type="text" id="updaterInstallPath" class="form-control" placeholder="Auto-detected from server path">
+                                        <button id="detectInstallPathBtn" class="btn btn-secondary btn-sm">Detect</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Info Section -->
+                            <div class="updater-info">
+                                <p><strong>Note:</strong> Updates will create a backup of your current installation before applying changes. The llama-server must be stopped before applying updates.</p>
                             </div>
                         </div>
                         </div>

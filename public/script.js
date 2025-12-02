@@ -61,6 +61,13 @@ const draftMaxTokensInput = document.getElementById('draftMaxTokens');
 const draftMinTokensInput = document.getElementById('draftMinTokens');
 const draftPMinInput = document.getElementById('draftPMin');
 
+// Models Directory elements
+const modelsSourceSelect = document.getElementById('modelsSource');
+const customPathGroup = document.getElementById('customPathGroup');
+const customModelsPathInput = document.getElementById('customModelsPath');
+const activeModelsPathSpan = document.getElementById('activeModelsPath');
+const refreshModelsBtn = document.getElementById('refreshModelsBtn');
+
 const launchBtn = document.getElementById('launchBtn');
 const stopBtn = document.getElementById('stopBtn');
 const openServerBtn = document.getElementById('openServerBtn');
@@ -85,6 +92,24 @@ const themeIcon = themeToggle.querySelector('.theme-icon');
 // Token speed elements
 const tokenSpeedDiv = document.getElementById('tokenSpeed');
 const speedValueSpan = document.getElementById('speedValue');
+
+// Updater elements
+const updaterCurrentVersion = document.getElementById('updaterCurrentVersion');
+const updaterLatestVersion = document.getElementById('updaterLatestVersion');
+const updaterPlatform = document.getElementById('updaterPlatform');
+const updaterStatus = document.getElementById('updaterStatus');
+const updateAvailableBanner = document.getElementById('updateAvailableBanner');
+const updateBannerInfo = document.getElementById('updateBannerInfo');
+const checkUpdatesBtn = document.getElementById('checkUpdatesBtn');
+const downloadUpdateBtn = document.getElementById('downloadUpdateBtn');
+const applyUpdateBtn = document.getElementById('applyUpdateBtn');
+const downloadProgressSection = document.getElementById('downloadProgressSection');
+const downloadProgressBar = document.getElementById('downloadProgressBar');
+const downloadProgressPercent = document.getElementById('downloadProgressPercent');
+const downloadProgressBytes = document.getElementById('downloadProgressBytes');
+const updaterMessages = document.getElementById('updaterMessages');
+const updaterInstallPath = document.getElementById('updaterInstallPath');
+const detectInstallPathBtn = document.getElementById('detectInstallPathBtn');
 
 // Store WebSocket connection
 let socket = null;
@@ -240,6 +265,193 @@ function loadServerPath() {
 
 function clearServerPath() {
     localStorage.removeItem(SERVER_PATH_KEY);
+}
+
+// ============================================
+// Models Directory Settings Management
+// ============================================
+
+// Cached detected paths for UI display
+let detectedPaths = null;
+
+// Load app settings and update UI
+async function loadModelsDirectorySettings() {
+    try {
+        const response = await fetch('/api/settings/detect-paths');
+        const data = await response.json();
+
+        if (data.success) {
+            detectedPaths = data.paths;
+
+            // Update source dropdown with detected status
+            updateModelsSourceOptions(data.paths);
+
+            // Set current selection
+            if (modelsSourceSelect) {
+                modelsSourceSelect.value = data.currentSource || 'lmstudio';
+            }
+
+            // Show/hide custom path input
+            updateCustomPathVisibility(data.currentSource);
+
+            // Set custom path if applicable
+            if (customModelsPathInput && data.customPath) {
+                customModelsPathInput.value = data.customPath;
+            }
+
+            // Update active path display
+            updateActivePathDisplay(data.activePath);
+        }
+    } catch (error) {
+        console.error('Error loading models directory settings:', error);
+        if (activeModelsPathSpan) {
+            activeModelsPathSpan.textContent = 'Error loading settings';
+        }
+    }
+}
+
+// Update the source dropdown options to show detection status
+function updateModelsSourceOptions(paths) {
+    if (!modelsSourceSelect) return;
+
+    const sources = [
+        { value: 'lmstudio', label: 'LM Studio', detected: paths.lmstudio?.found },
+        { value: 'ollama', label: 'Ollama', detected: paths.ollama?.found },
+        { value: 'gpt4all', label: 'GPT4All', detected: paths.gpt4all?.found },
+        { value: 'jan', label: 'Jan.ai', detected: paths.jan?.found },
+        { value: 'custom', label: 'Custom Path', detected: true }
+    ];
+
+    // Clear and rebuild options
+    modelsSourceSelect.innerHTML = '';
+
+    sources.forEach(source => {
+        const option = document.createElement('option');
+        option.value = source.value;
+
+        if (source.value === 'custom') {
+            option.textContent = source.label;
+        } else {
+            const status = source.detected ? '✓' : '✗';
+            option.textContent = `${source.label} (${status} ${source.detected ? 'detected' : 'not found'})`;
+        }
+
+        // Disable options where path not found (except custom)
+        if (!source.detected && source.value !== 'custom') {
+            option.disabled = true;
+        }
+
+        modelsSourceSelect.appendChild(option);
+    });
+}
+
+// Show/hide custom path input based on selection
+function updateCustomPathVisibility(source) {
+    if (!customPathGroup) return;
+
+    if (source === 'custom') {
+        customPathGroup.style.display = 'block';
+    } else {
+        customPathGroup.style.display = 'none';
+    }
+}
+
+// Update the active path display
+function updateActivePathDisplay(path) {
+    if (!activeModelsPathSpan) return;
+
+    if (path) {
+        activeModelsPathSpan.textContent = path;
+        activeModelsPathSpan.title = path; // Full path on hover
+    } else {
+        activeModelsPathSpan.textContent = 'No path configured';
+    }
+}
+
+// Handle source selection change
+async function onModelsSourceChange() {
+    const source = modelsSourceSelect?.value || 'lmstudio';
+
+    // Update custom path visibility
+    updateCustomPathVisibility(source);
+
+    // Save settings
+    await saveModelsDirectorySettings();
+}
+
+// Handle custom path change
+async function onCustomPathChange() {
+    // Debounce - only save after user stops typing
+    if (customModelsPathInput._debounceTimer) {
+        clearTimeout(customModelsPathInput._debounceTimer);
+    }
+
+    customModelsPathInput._debounceTimer = setTimeout(async () => {
+        await saveModelsDirectorySettings();
+    }, 500);
+}
+
+// Save models directory settings
+async function saveModelsDirectorySettings() {
+    const source = modelsSourceSelect?.value || 'lmstudio';
+    const customPath = customModelsPathInput?.value || '';
+
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                modelsPath: {
+                    source: source,
+                    customPath: customPath
+                }
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Update active path display
+            updateActivePathDisplay(data.activePath);
+
+            // Refresh models list
+            await fetchModels();
+        } else {
+            console.error('Error saving settings:', data.error);
+            showOutput('Error saving settings: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error saving models directory settings:', error);
+        showOutput('Error saving settings: ' + error.message);
+    }
+}
+
+// Refresh models button handler
+async function refreshModelsHandler() {
+    if (refreshModelsBtn) {
+        refreshModelsBtn.disabled = true;
+        refreshModelsBtn.textContent = 'Refreshing...';
+    }
+
+    try {
+        // Reload settings to get fresh path detection
+        await loadModelsDirectorySettings();
+
+        // Refresh models list
+        await fetchModels();
+
+        showOutput('Models list refreshed successfully');
+    } catch (error) {
+        console.error('Error refreshing models:', error);
+        showOutput('Error refreshing models: ' + error.message);
+    } finally {
+        if (refreshModelsBtn) {
+            refreshModelsBtn.disabled = false;
+            refreshModelsBtn.textContent = 'Refresh Models';
+        }
+    }
 }
 
 // Disable/enable buttons based on status
@@ -1257,6 +1469,9 @@ function initWebSocket() {
             console.log('Disconnected from WebSocket server');
             showOutput('Disconnected from server for real-time logging');
         });
+
+        // Setup updater socket events
+        setupUpdaterSocketEvents();
     } catch (error) {
         console.error('Failed to initialize WebSocket:', error);
         showOutput('Failed to connect to server for real-time logging: ' + error.message);
@@ -1695,26 +1910,40 @@ function analyzeModelAndRecommendSettings() {
 async function init() {
     // Load theme first
     loadTheme();
-    
+
     // Load server path independently
     const savedServerPath = loadServerPath();
     if (savedServerPath) {
         serverPathInput.value = savedServerPath;
     }
-    
+
+    // Load models directory settings first (before fetching models)
+    await loadModelsDirectorySettings();
+
     // Load configurations asynchronously
     await loadConfigurations();
-    
+
     await fetchModels();
-    
+
+    // Set up event listeners for models directory settings
+    if (modelsSourceSelect) {
+        modelsSourceSelect.addEventListener('change', onModelsSourceChange);
+    }
+    if (customModelsPathInput) {
+        customModelsPathInput.addEventListener('input', onCustomPathChange);
+    }
+    if (refreshModelsBtn) {
+        refreshModelsBtn.addEventListener('click', refreshModelsHandler);
+    }
+
     // Set up event listeners for configuration management
     addConfigBtn.addEventListener('click', addNewConfiguration);
     saveConfigBtn.addEventListener('click', saveConfigurationUI);
     cancelConfigBtn.addEventListener('click', cancelConfiguration);
-    
+
     // Set up event listeners for context token parameters
     ctkEnableCheckbox.addEventListener('change', updateContextTokenEnableState);
-    
+
     // Set up event listeners for draft model parameters
     draftModelEnableCheckbox.addEventListener('change', updateDraftModelEnableState);
     
@@ -1786,7 +2015,13 @@ async function init() {
     
     // Initialize tabs
     initTabs();
-    
+
+    // Initialize updater module
+    initUpdater();
+
+    // Initialize WebSocket connection (needed for updater progress events)
+    initWebSocket();
+
     // Set up tensor split change handler to show/hide warning
     tensorSplitInput.addEventListener('input', function() {
         const hasTensorSplit = this.value && this.value.trim().includes(',');
@@ -2213,6 +2448,373 @@ function handleResize() {
         updateCharts();
     }, 100); // Small delay to ensure DOM is updated
 }
+
+// ============================================
+// LLAMA.CPP AUTO-UPDATER UI MODULE
+// ============================================
+
+// Updater state
+let updaterState = {
+    currentVersion: null,
+    latestVersion: null,
+    updateAvailable: false,
+    pendingUpdate: null,
+    downloadInProgress: false
+};
+
+// Format bytes to human readable
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Add updater message
+function addUpdaterMessage(message, type = 'info') {
+    if (!updaterMessages) return;
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `updater-message updater-message-${type}`;
+    msgDiv.innerHTML = `<span class="msg-time">${new Date().toLocaleTimeString()}</span> ${message}`;
+
+    updaterMessages.insertBefore(msgDiv, updaterMessages.firstChild);
+
+    // Keep only last 5 messages
+    while (updaterMessages.children.length > 5) {
+        updaterMessages.removeChild(updaterMessages.lastChild);
+    }
+}
+
+// Update UI based on updater state
+function updateUpdaterUI() {
+    // Update version display
+    if (updaterCurrentVersion) {
+        updaterCurrentVersion.textContent = updaterState.currentVersion || 'Unknown';
+        updaterCurrentVersion.className = 'version-value' + (updaterState.currentVersion ? '' : ' unknown');
+    }
+
+    if (updaterLatestVersion) {
+        updaterLatestVersion.textContent = updaterState.latestVersion || '-';
+    }
+
+    // Update status badge
+    if (updaterStatus) {
+        if (updaterState.updateAvailable) {
+            updaterStatus.textContent = 'Update Available';
+            updaterStatus.className = 'version-value status-badge update-available';
+        } else if (updaterState.currentVersion === updaterState.latestVersion) {
+            updaterStatus.textContent = 'Up to Date';
+            updaterStatus.className = 'version-value status-badge up-to-date';
+        } else {
+            updaterStatus.textContent = 'Unknown';
+            updaterStatus.className = 'version-value status-badge';
+        }
+    }
+
+    // Update available banner
+    if (updateAvailableBanner) {
+        if (updaterState.updateAvailable && updaterState.buildsBehind) {
+            updateAvailableBanner.style.display = 'block';
+            if (updateBannerInfo) {
+                updateBannerInfo.textContent = `${updaterState.buildsBehind} builds behind (${updaterState.currentVersion || 'unknown'} → ${updaterState.latestVersion})`;
+            }
+        } else {
+            updateAvailableBanner.style.display = 'none';
+        }
+    }
+
+    // Update button states
+    if (downloadUpdateBtn) {
+        downloadUpdateBtn.disabled = !updaterState.updateAvailable || updaterState.downloadInProgress || !!updaterState.pendingUpdate;
+    }
+
+    if (applyUpdateBtn) {
+        applyUpdateBtn.disabled = !updaterState.pendingUpdate;
+    }
+}
+
+// Fetch updater status
+async function fetchUpdaterStatus() {
+    try {
+        const response = await fetch('/api/updater/status');
+        const data = await response.json();
+
+        if (data.success) {
+            updaterState.currentVersion = data.currentVersion;
+            updaterState.latestVersion = data.latestVersion;
+            updaterState.updateAvailable = data.updateAvailable;
+            updaterState.pendingUpdate = data.pendingUpdate;
+            updaterState.downloadInProgress = data.downloadInProgress;
+
+            if (updaterPlatform) {
+                updaterPlatform.textContent = data.platform || 'Not detected';
+            }
+
+            if (updaterInstallPath && data.installPath) {
+                updaterInstallPath.value = data.installPath;
+            }
+
+            updateUpdaterUI();
+        }
+    } catch (error) {
+        console.error('Error fetching updater status:', error);
+    }
+}
+
+// Check for updates
+async function checkForUpdates() {
+    if (!checkUpdatesBtn) return;
+
+    checkUpdatesBtn.disabled = true;
+    checkUpdatesBtn.innerHTML = '<span class="btn-icon">⏳</span> Checking...';
+
+    try {
+        // Include server path for auto-detection
+        const serverPath = serverPathInput ? serverPathInput.value : '';
+        const url = '/api/updater/check' + (serverPath ? `?serverPath=${encodeURIComponent(serverPath)}` : '');
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.success) {
+            updaterState.currentVersion = data.currentVersion;
+            updaterState.latestVersion = data.latestVersion;
+            updaterState.updateAvailable = data.updateAvailable;
+            updaterState.buildsBehind = data.buildsBehind;
+
+            if (updaterPlatform) {
+                updaterPlatform.textContent = data.platform || 'Not detected';
+            }
+
+            updateUpdaterUI();
+
+            if (data.updateAvailable) {
+                addUpdaterMessage(`Update available: ${data.latestVersion} (${data.buildsBehind} builds behind)`, 'success');
+            } else if (data.currentVersion === 'unknown') {
+                addUpdaterMessage('Could not detect current version. Configure install path manually.', 'warning');
+            } else {
+                addUpdaterMessage('You are running the latest version.', 'info');
+            }
+        } else {
+            addUpdaterMessage(`Check failed: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error checking for updates:', error);
+        addUpdaterMessage(`Error: ${error.message}`, 'error');
+    } finally {
+        checkUpdatesBtn.disabled = false;
+        checkUpdatesBtn.innerHTML = '<span class="btn-icon">🔍</span> Check for Updates';
+    }
+}
+
+// Download update
+async function downloadUpdate() {
+    if (!downloadUpdateBtn) return;
+
+    downloadUpdateBtn.disabled = true;
+    downloadUpdateBtn.innerHTML = '<span class="btn-icon">⏳</span> Starting...';
+
+    if (downloadProgressSection) {
+        downloadProgressSection.style.display = 'block';
+    }
+
+    try {
+        const response = await fetch('/api/updater/download', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            addUpdaterMessage(`Download started: ${data.filename}`, 'info');
+            updaterState.downloadInProgress = true;
+        } else {
+            addUpdaterMessage(`Download failed: ${data.error}`, 'error');
+            if (downloadProgressSection) {
+                downloadProgressSection.style.display = 'none';
+            }
+            downloadUpdateBtn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error starting download:', error);
+        addUpdaterMessage(`Error: ${error.message}`, 'error');
+        if (downloadProgressSection) {
+            downloadProgressSection.style.display = 'none';
+        }
+        downloadUpdateBtn.disabled = false;
+    }
+
+    downloadUpdateBtn.innerHTML = '<span class="btn-icon">⬇️</span> Download Update';
+}
+
+// Apply update
+async function applyUpdate() {
+    if (!applyUpdateBtn) return;
+
+    // Confirm before applying
+    if (!confirm('This will update llama.cpp to the latest version. A backup of your current installation will be created. Continue?')) {
+        return;
+    }
+
+    applyUpdateBtn.disabled = true;
+    applyUpdateBtn.innerHTML = '<span class="btn-icon">⏳</span> Applying...';
+
+    try {
+        const response = await fetch('/api/updater/apply', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            addUpdaterMessage(`Update applied successfully! ${data.previousVersion} → ${data.version}`, 'success');
+            addUpdaterMessage(`Backup created: ${data.backupPath}`, 'info');
+
+            // Reset state
+            updaterState.pendingUpdate = null;
+            updaterState.updateAvailable = false;
+            updaterState.currentVersion = data.version;
+            updaterState.latestVersion = data.version;
+
+            updateUpdaterUI();
+        } else {
+            addUpdaterMessage(`Apply failed: ${data.error}`, 'error');
+            if (data.backupPath) {
+                addUpdaterMessage(`Backup location: ${data.backupPath}`, 'info');
+            }
+        }
+    } catch (error) {
+        console.error('Error applying update:', error);
+        addUpdaterMessage(`Error: ${error.message}`, 'error');
+    } finally {
+        applyUpdateBtn.disabled = !updaterState.pendingUpdate;
+        applyUpdateBtn.innerHTML = '<span class="btn-icon">📦</span> Apply Update';
+    }
+}
+
+// Configure install path
+async function configureInstallPath() {
+    const installPath = updaterInstallPath ? updaterInstallPath.value : '';
+
+    if (!installPath && serverPathInput && serverPathInput.value) {
+        // Auto-detect from server path
+        const serverPath = serverPathInput.value;
+        const pathParts = serverPath.split(/[/\\]/);
+        pathParts.pop(); // Remove filename
+        const detectedPath = pathParts.join(serverPath.includes('/') ? '/' : '\\');
+
+        if (updaterInstallPath) {
+            updaterInstallPath.value = detectedPath;
+        }
+
+        addUpdaterMessage(`Detected install path: ${detectedPath}`, 'info');
+    }
+
+    const pathToSet = updaterInstallPath ? updaterInstallPath.value : '';
+
+    if (pathToSet) {
+        try {
+            const response = await fetch('/api/updater/configure', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ installPath: pathToSet })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                addUpdaterMessage(`Install path configured. Detected version: ${data.currentVersion?.build || 'unknown'}`, 'success');
+                if (updaterPlatform) {
+                    updaterPlatform.textContent = data.platform || 'Not detected';
+                }
+                await fetchUpdaterStatus();
+            } else {
+                addUpdaterMessage(`Configuration failed: ${data.error}`, 'error');
+            }
+        } catch (error) {
+            addUpdaterMessage(`Error: ${error.message}`, 'error');
+        }
+    }
+}
+
+// Setup updater Socket.IO event handlers
+function setupUpdaterSocketEvents() {
+    if (!socket) return;
+
+    // Download progress
+    socket.on('update-progress', (data) => {
+        if (downloadProgressBar) {
+            downloadProgressBar.style.width = `${data.progress}%`;
+        }
+        if (downloadProgressPercent) {
+            downloadProgressPercent.textContent = `${data.progress}%`;
+        }
+        if (downloadProgressBytes) {
+            downloadProgressBytes.textContent = `${formatBytes(data.downloaded)} / ${formatBytes(data.total)}`;
+        }
+    });
+
+    // Download complete
+    socket.on('update-downloaded', (data) => {
+        if (data.success) {
+            addUpdaterMessage(`Download complete: ${data.version}`, 'success');
+            updaterState.pendingUpdate = { version: data.version };
+            updaterState.downloadInProgress = false;
+
+            if (downloadProgressSection) {
+                downloadProgressSection.style.display = 'none';
+            }
+
+            updateUpdaterUI();
+        }
+    });
+
+    // Download error
+    socket.on('update-error', (data) => {
+        addUpdaterMessage(`Download error: ${data.error}`, 'error');
+        updaterState.downloadInProgress = false;
+
+        if (downloadProgressSection) {
+            downloadProgressSection.style.display = 'none';
+        }
+
+        if (downloadUpdateBtn) {
+            downloadUpdateBtn.disabled = false;
+        }
+    });
+
+    // Update applied
+    socket.on('update-applied', (data) => {
+        if (data.success) {
+            addUpdaterMessage(`Update applied: ${data.previousVersion} → ${data.version}`, 'success');
+        }
+    });
+}
+
+// Initialize updater
+function initUpdater() {
+    // Bind event listeners
+    if (checkUpdatesBtn) {
+        checkUpdatesBtn.addEventListener('click', checkForUpdates);
+    }
+
+    if (downloadUpdateBtn) {
+        downloadUpdateBtn.addEventListener('click', downloadUpdate);
+    }
+
+    if (applyUpdateBtn) {
+        applyUpdateBtn.addEventListener('click', applyUpdate);
+    }
+
+    if (detectInstallPathBtn) {
+        detectInstallPathBtn.addEventListener('click', configureInstallPath);
+    }
+
+    // Setup socket events after socket is connected
+    // This will be called from the main init after socket connection
+
+    // Fetch initial status
+    fetchUpdaterStatus();
+}
+
+// ============================================
+// END LLAMA.CPP AUTO-UPDATER UI MODULE
+// ============================================
 
 // Start the application when DOM is loaded
 // Force absolute positioning as nuclear fallback option
