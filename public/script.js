@@ -51,6 +51,15 @@ const presetBalancedDualBtn = document.getElementById('presetBalancedDual');
 const presetLargeModelBtn = document.getElementById('presetLargeModel');
 const presetCpuOffloadBtn = document.getElementById('presetCpuOffload');
 const presetHighRamHybridBtn = document.getElementById('presetHighRamHybrid');
+const presetQwen35Btn = document.getElementById('presetQwen35');
+const presetGemma4Btn = document.getElementById('presetGemma4');
+
+// Extended Context & Vision elements
+const ropeScalingSelect = document.getElementById('ropeScaling');
+const ropeScaleInput = document.getElementById('ropeScale');
+const yarnOrigCtxInput = document.getElementById('yarnOrigCtx');
+const imageMinTokensInput = document.getElementById('imageMinTokens');
+const imageMaxTokensInput = document.getElementById('imageMaxTokens');
 
 // Draft Model (Speculative Decoding) elements
 const draftModelEnableCheckbox = document.getElementById('draftModelEnable');
@@ -1073,7 +1082,14 @@ function loadConfiguration(configId) {
     if (config.draftMaxTokens !== undefined) draftMaxTokensInput.value = config.draftMaxTokens;
     if (config.draftMinTokens !== undefined) draftMinTokensInput.value = config.draftMinTokens;
     if (config.draftPMin !== undefined) draftPMinInput.value = config.draftPMin;
-    
+
+    // Load Extended Context & Vision parameters
+    if (config.ropeScaling !== undefined && ropeScalingSelect) ropeScalingSelect.value = config.ropeScaling;
+    if (config.ropeScale !== undefined && ropeScaleInput) ropeScaleInput.value = config.ropeScale || '';
+    if (config.yarnOrigCtx !== undefined && yarnOrigCtxInput) yarnOrigCtxInput.value = config.yarnOrigCtx || '';
+    if (config.imageMinTokens !== undefined && imageMinTokensInput) imageMinTokensInput.value = config.imageMinTokens || '';
+    if (config.imageMaxTokens !== undefined && imageMaxTokensInput) imageMaxTokensInput.value = config.imageMaxTokens || '';
+
     // Update draft model enable state
     updateDraftModelEnableState();
 }
@@ -1319,7 +1335,28 @@ async function launchServer() {
         if (config.memoryTest) {
             args.push('--memory-test');
         }
-        
+
+        // Extended Context & Vision parameters
+        if (config.ropeScaling && config.ropeScaling.trim()) {
+            args.push('--rope-scaling', config.ropeScaling.trim());
+        }
+
+        if (config.ropeScale > 0) {
+            args.push('--rope-scale', config.ropeScale.toString());
+        }
+
+        if (config.yarnOrigCtx > 0) {
+            args.push('--yarn-orig-ctx', config.yarnOrigCtx.toString());
+        }
+
+        if (config.imageMinTokens > 0) {
+            args.push('--image-min-tokens', config.imageMinTokens.toString());
+        }
+
+        if (config.imageMaxTokens > 0) {
+            args.push('--image-max-tokens', config.imageMaxTokens.toString());
+        }
+
         // Add Server Network parameters
         if (config.serverHost && config.serverHost !== '127.0.0.1') {
             args.push('--host', config.serverHost);
@@ -1648,7 +1685,13 @@ async function saveConfigurationUI() {
             draftContextSize: parseInt(draftContextSizeInput.value) || 0,
             draftMaxTokens: parseInt(draftMaxTokensInput.value) || 0,
             draftMinTokens: parseInt(draftMinTokensInput.value) || 0,
-            draftPMin: parseFloat(draftPMinInput.value) || 0
+            draftPMin: parseFloat(draftPMinInput.value) || 0,
+            // Extended Context & Vision parameters
+            ropeScaling: ropeScalingSelect ? ropeScalingSelect.value : '',
+            ropeScale: ropeScaleInput ? parseFloat(ropeScaleInput.value) || 0 : 0,
+            yarnOrigCtx: yarnOrigCtxInput ? parseInt(yarnOrigCtxInput.value) || 0 : 0,
+            imageMinTokens: imageMinTokensInput ? parseInt(imageMinTokensInput.value) || 0 : 0,
+            imageMaxTokens: imageMaxTokensInput ? parseInt(imageMaxTokensInput.value) || 0 : 0
         };
         
         // Create configuration object
@@ -1833,6 +1876,52 @@ function applyHighRamHybrid() {
     showMultiGpuWarning(true);
 }
 
+function applyQwen35Preset() {
+    // Optimal settings for Qwen 3.5 models (thinking + chat mode)
+    // Thinking mode temp: 0.6 | Top-K: 20 | Top-P: 0.95 per Qwen official docs
+    nglInput.value = '99';
+    contextSizeInput.value = '32768';
+    batchSizeInput.value = '512';
+    ubatchSizeInput.value = '512';
+    tempInput.value = '0.6';
+    topKInput.value = '20';
+    topPInput.value = '0.95';
+    repeatPenaltyInput.value = '1.0';
+    fastAttentionCheckbox.checked = true;
+    jinjaCheckbox.checked = true;  // use embedded chat template (ChatML)
+    cacheTypeKSelect.value = 'bf16';
+    cacheTypeVSelect.value = 'bf16';
+    mainGpuSelect.value = '0';
+    tensorSplitInput.value = '';
+    splitModeSelect.value = 'none';
+    showMultiGpuWarning(false);
+}
+
+function applyGemma4Preset() {
+    // Google's recommended settings for Gemma 4 (text + vision)
+    // Temp: 1.0 | Top-K: 64 | Top-P: 0.95 per Google's official defaults
+    // batch/ubatch 2048 required — image tokens must fit in a single ubatch
+    nglInput.value = '99';
+    contextSizeInput.value = '32768';
+    batchSizeInput.value = '2048';
+    ubatchSizeInput.value = '2048';
+    tempInput.value = '1.0';
+    topKInput.value = '64';
+    topPInput.value = '0.95';
+    repeatPenaltyInput.value = '1.0';
+    fastAttentionCheckbox.checked = true;
+    jinjaCheckbox.checked = true;
+    cacheTypeKSelect.value = 'q4_0';
+    cacheTypeVSelect.value = 'q4_0';
+    mainGpuSelect.value = '0';
+    tensorSplitInput.value = '';
+    splitModeSelect.value = 'none';
+    // Vision: set image token budget to maximum supported value
+    if (imageMinTokensInput) imageMinTokensInput.value = '1120';
+    if (imageMaxTokensInput) imageMaxTokensInput.value = '1120';
+    showMultiGpuWarning(false);
+}
+
 function showMultiGpuWarning(show) {
     const warningBanner = document.getElementById('multiGpuWarning');
     if (warningBanner) {
@@ -2006,6 +2095,8 @@ async function init() {
     presetLargeModelBtn.addEventListener('click', applyLargeModelDualGPU);
     presetCpuOffloadBtn.addEventListener('click', applyCpuOffloadHybrid);
     presetHighRamHybridBtn.addEventListener('click', applyHighRamHybrid);
+    if (presetQwen35Btn) presetQwen35Btn.addEventListener('click', applyQwen35Preset);
+    if (presetGemma4Btn) presetGemma4Btn.addEventListener('click', applyGemma4Preset);
     
     // Set up theme toggle event listener
     themeToggle.addEventListener('click', toggleTheme);

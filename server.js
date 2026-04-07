@@ -358,15 +358,16 @@ function extractMetadataFromFilename(filePath, fileSize) {
         specialCapabilities: []
     };
     
-    // Detect architecture
+    // Detect architecture (more specific patterns first to avoid false matches)
     const archPatterns = {
-        'Llama': /llama[_-]?(\d+)?[\._-]/i,
+        'CodeLlama': /code[_-]?llama[_-]?(\d+)?[\._-]/i,
+        'Gemma4': /gemma[_-]?4[\._-]/i,
         'Gemma': /gemma[_-]?(\d+)?[\._-]/i,
+        'Llama': /llama[_-]?(\d+)?[\._-]/i,
         'Mistral': /mistral[_-]?(\d+)?[\._-]/i,
         'Mixtral': /mixtral[_-]?(\d+)?[\._-]/i,
         'Qwen': /qwen[_-]?(\d+)?[\._-]/i,
         'GLM': /glm[_-]?(\d+)?[\._-]/i,
-        'CodeLlama': /code[_-]?llama[_-]?(\d+)?[\._-]/i,
         'DeepSeek': /deepseek[_-]?(\d+)?[\._-]/i
     };
     
@@ -409,7 +410,14 @@ function extractMetadataFromFilename(filePath, fileSize) {
         'Q6_K': { regex: /q6[_-]?k/i, quality: 'Very High', description: 'Very large, excellent quality' },
         'Q8_0': { regex: /q8[_-]?0/i, quality: 'Excellent', description: 'Largest, best quality' },
         'F16': { regex: /f16/i, quality: 'Perfect', description: 'Half precision, original quality' },
-        'F32': { regex: /f32/i, quality: 'Perfect', description: 'Full precision, original quality' }
+        'BF16': { regex: /bf16/i, quality: 'Perfect', description: 'Brain float 16-bit, original quality' },
+        'F32': { regex: /f32/i, quality: 'Perfect', description: 'Full precision, original quality' },
+        'FP8': { regex: /fp8/i, quality: 'Very High', description: 'Float 8-bit, near-lossless' },
+        'NVFP4': { regex: /nvfp4/i, quality: 'Good', description: 'NVIDIA FP4 format' },
+        'UD_Q4_K_XL': { regex: /ud[_-]?q4[_-]?k[_-]?xl/i, quality: 'Good', description: 'Unsloth Dynamic Q4_K XL' },
+        'IQ2_M': { regex: /iq2[_-]?m/i, quality: 'Very Low', description: 'iQuant 2-bit medium' },
+        'IQ3_M': { regex: /iq3[_-]?m/i, quality: 'Low', description: 'iQuant 3-bit medium' },
+        'IQ4_XS': { regex: /iq4[_-]?xs/i, quality: 'Medium', description: 'iQuant 4-bit extra-small' }
     };
     
     for (const [quant, info] of Object.entries(quantPatterns)) {
@@ -438,8 +446,17 @@ function extractMetadataFromFilename(filePath, fileSize) {
         metadata.specialCapabilities.push('Thinking Mode');
     }
     
+    // Flag Gemma 4 vision models
+    if (metadata.architecture === 'Gemma4' && !/text-only/i.test(filename)) {
+        if (!metadata.specialCapabilities.includes('Vision/Multimodal')) {
+            metadata.specialCapabilities.push('Vision/Multimodal');
+        }
+    }
+
     // Estimate context length based on model and patterns
-    if (/128k|131072/i.test(filename)) {
+    if (/256k|262144/i.test(filename)) {
+        metadata.contextLength = '256K';
+    } else if (/128k|131072/i.test(filename)) {
         metadata.contextLength = '128K';
     } else if (/32k|32768/i.test(filename)) {
         metadata.contextLength = '32K';
@@ -450,11 +467,13 @@ function extractMetadataFromFilename(filePath, fileSize) {
     } else {
         // Default based on architecture
         if (metadata.architecture === 'Llama' || metadata.architecture === 'CodeLlama') {
-            metadata.contextLength = '8K'; // Most Llama models
+            metadata.contextLength = '8K';
         } else if (metadata.architecture === 'Mistral' || metadata.architecture === 'Mixtral') {
-            metadata.contextLength = '32K'; // Mistral models typically have 32K
+            metadata.contextLength = '32K';
         } else if (metadata.architecture === 'Qwen') {
-            metadata.contextLength = '32K'; // Qwen models typically have 32K
+            metadata.contextLength = '128K'; // Qwen 3.5 native context
+        } else if (metadata.architecture === 'Gemma4') {
+            metadata.contextLength = '128K'; // Gemma 4 supports up to 256K
         } else {
             metadata.contextLength = '4K'; // Conservative default
         }
