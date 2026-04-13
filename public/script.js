@@ -29,6 +29,11 @@ const splitModeSelect = document.getElementById('splitMode');
 const batchSizeInput = document.getElementById('batchSize');
 const ubatchSizeInput = document.getElementById('ubatchSize');
 const contBatchingCheckbox = document.getElementById('contBatching');
+const noContextShiftCheckbox = document.getElementById('noContextShift');
+const nPredictInput = document.getElementById('nPredict');
+const nParallelInput = document.getElementById('nParallel');
+const slotPromptSimilarityInput = document.getElementById('slotPromptSimilarity');
+const slotSavePathInput = document.getElementById('slotSavePath');
 const noMmapCheckbox = document.getElementById('noMmap');
 const numaSelect = document.getElementById('numa');
 
@@ -37,6 +42,7 @@ const cacheTypeKSelect = document.getElementById('cacheTypeK');
 const cacheTypeVSelect = document.getElementById('cacheTypeV');
 const keepModelsInput = document.getElementById('keepModels');
 const memoryTestCheckbox = document.getElementById('memoryTest');
+const kvOffloadCheckbox = document.getElementById('kvOffload');
 
 // New Server Network elements
 const serverHostInput = document.getElementById('serverHost');
@@ -53,6 +59,7 @@ const presetCpuOffloadBtn = document.getElementById('presetCpuOffload');
 const presetHighRamHybridBtn = document.getElementById('presetHighRamHybrid');
 const presetQwen35Btn = document.getElementById('presetQwen35');
 const presetGemma4Btn = document.getElementById('presetGemma4');
+const presetAgenticCodingBtn = document.getElementById('presetAgenticCoding');
 
 // Extended Context & Vision elements
 const ropeScalingSelect = document.getElementById('ropeScaling');
@@ -1058,12 +1065,18 @@ function loadConfiguration(configId) {
     if (config.batchSize !== undefined) batchSizeInput.value = config.batchSize;
     if (config.ubatchSize !== undefined) ubatchSizeInput.value = config.ubatchSize;
     if (config.contBatching !== undefined) contBatchingCheckbox.checked = config.contBatching;
+    if (config.noContextShift !== undefined && noContextShiftCheckbox) noContextShiftCheckbox.checked = config.noContextShift;
+    if (config.nPredict !== undefined && nPredictInput) nPredictInput.value = config.nPredict || '';
+    if (config.nParallel !== undefined && nParallelInput) nParallelInput.value = config.nParallel || '';
+    if (config.slotPromptSimilarity !== undefined && slotPromptSimilarityInput) slotPromptSimilarityInput.value = config.slotPromptSimilarity || '';
+    if (config.slotSavePath !== undefined && slotSavePathInput) slotSavePathInput.value = config.slotSavePath || '';
     if (config.noMmap !== undefined) noMmapCheckbox.checked = config.noMmap;
     if (config.numa !== undefined) numaSelect.value = config.numa;
-    
+
     // Load new Advanced Memory parameters
     if (config.cacheTypeK !== undefined) cacheTypeKSelect.value = config.cacheTypeK;
     if (config.cacheTypeV !== undefined) cacheTypeVSelect.value = config.cacheTypeV;
+    if (config.kvOffload !== undefined && kvOffloadCheckbox) kvOffloadCheckbox.checked = config.kvOffload;
     if (config.keepModels !== undefined) keepModelsInput.value = config.keepModels;
     if (config.memoryTest !== undefined) memoryTestCheckbox.checked = config.memoryTest;
     
@@ -1310,7 +1323,27 @@ async function launchServer() {
         if (config.contBatching) {
             args.push('--cont-batching');
         }
-        
+
+        if (config.noContextShift) {
+            args.push('--no-context-shift');
+        }
+
+        if (config.nPredict && config.nPredict !== 0) {
+            args.push('-n', config.nPredict.toString());
+        }
+
+        if (config.nParallel > 1) {
+            args.push('-np', config.nParallel.toString());
+        }
+
+        if (config.slotPromptSimilarity > 0) {
+            args.push('-sps', config.slotPromptSimilarity.toString());
+        }
+
+        if (config.slotSavePath && config.slotSavePath.trim()) {
+            args.push('--slot-save-path', config.slotSavePath.trim());
+        }
+
         if (config.noMmap) {
             args.push('--no-mmap');
         }
@@ -1327,7 +1360,11 @@ async function launchServer() {
         if (config.cacheTypeV && config.cacheTypeV !== 'f16') {
             args.push('--cache-type-v', config.cacheTypeV);
         }
-        
+
+        if (config.kvOffload) {
+            args.push('-nkvo');
+        }
+
         if (config.keepModels > 0) {
             args.push('--keep', config.keepModels.toString());
         }
@@ -1665,11 +1702,17 @@ async function saveConfigurationUI() {
             batchSize: parseInt(batchSizeInput.value) || 0,
             ubatchSize: parseInt(ubatchSizeInput.value) || 0,
             contBatching: contBatchingCheckbox.checked,
+            noContextShift: noContextShiftCheckbox ? noContextShiftCheckbox.checked : false,
+            nPredict: nPredictInput ? parseInt(nPredictInput.value) || 0 : 0,
+            nParallel: nParallelInput ? parseInt(nParallelInput.value) || 0 : 0,
+            slotPromptSimilarity: slotPromptSimilarityInput ? parseFloat(slotPromptSimilarityInput.value) || 0 : 0,
+            slotSavePath: slotSavePathInput ? slotSavePathInput.value : '',
             noMmap: noMmapCheckbox.checked,
             numa: numaSelect.value,
             // Advanced Memory parameters
             cacheTypeK: cacheTypeKSelect.value,
             cacheTypeV: cacheTypeVSelect.value,
+            kvOffload: kvOffloadCheckbox ? kvOffloadCheckbox.checked : false,
             keepModels: parseInt(keepModelsInput.value) || 0,
             memoryTest: memoryTestCheckbox.checked,
             // Server Network parameters
@@ -1922,6 +1965,33 @@ function applyGemma4Preset() {
     showMultiGpuWarning(false);
 }
 
+function applyAgenticCodingPreset() {
+    // Optimized for coding agents (OpenCode, Cline, Continue.dev, etc.)
+    // Low temp for determinism, parallel slots for concurrent tool calls,
+    // aggressive cache reuse, bounded generation to prevent runaway output
+    nglInput.value = '99';
+    contextSizeInput.value = '65536';
+    batchSizeInput.value = '2048';
+    ubatchSizeInput.value = '512';
+    tempInput.value = '0.3';
+    topKInput.value = '20';
+    topPInput.value = '0.95';
+    repeatPenaltyInput.value = '1.0';
+    fastAttentionCheckbox.checked = true;
+    contBatchingCheckbox.checked = true;
+    jinjaCheckbox.checked = true;
+    if (noContextShiftCheckbox) noContextShiftCheckbox.checked = false;
+    if (nPredictInput) nPredictInput.value = '4096';
+    if (nParallelInput) nParallelInput.value = '4';
+    if (slotPromptSimilarityInput) slotPromptSimilarityInput.value = '0.75';
+    cacheTypeKSelect.value = 'q4_0';
+    cacheTypeVSelect.value = 'q4_0';
+    mainGpuSelect.value = '0';
+    tensorSplitInput.value = '';
+    splitModeSelect.value = 'none';
+    showMultiGpuWarning(false);
+}
+
 function showMultiGpuWarning(show) {
     const warningBanner = document.getElementById('multiGpuWarning');
     if (warningBanner) {
@@ -2097,6 +2167,7 @@ async function init() {
     presetHighRamHybridBtn.addEventListener('click', applyHighRamHybrid);
     if (presetQwen35Btn) presetQwen35Btn.addEventListener('click', applyQwen35Preset);
     if (presetGemma4Btn) presetGemma4Btn.addEventListener('click', applyGemma4Preset);
+    if (presetAgenticCodingBtn) presetAgenticCodingBtn.addEventListener('click', applyAgenticCodingPreset);
     
     // Set up theme toggle event listener
     themeToggle.addEventListener('click', toggleTheme);

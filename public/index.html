@@ -158,6 +158,7 @@
                         <button type="button" id="presetHighRamHybrid" class="btn btn-outline-success">High RAM Hybrid (128GB+)</button>
                         <button type="button" id="presetQwen35" class="btn btn-outline-info">Qwen 3.5</button>
                         <button type="button" id="presetGemma4" class="btn btn-outline-info">Gemma 4</button>
+                        <button type="button" id="presetAgenticCoding" class="btn btn-outline-warning">Agentic Coding</button>
                     </div>
                         </div>
 
@@ -191,7 +192,15 @@
                                 </label>
                                 <input type="number" id="ubatchSize" class="form-control" min="1" value="512">
                             </div>
-                            
+                            <div class="form-group">
+                                <label for="nPredict">Max Predict Tokens (--n-predict, -n):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Maximum tokens to generate per request. -1 = unlimited. Agents typically use 2048-4096 to prevent runaway generation. Leave blank for server default (unlimited).</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="nPredict" class="form-control" min="-1" placeholder="unlimited (default)">
+                            </div>
+
                             <div class="inline-checkboxes">
                                 <div class="form-group">
                                     <label for="contBatching">Continuous Batching (--cont-batching):
@@ -209,8 +218,42 @@
                                     </label>
                                     <input type="checkbox" id="fastAttention" class="form-control checkbox">
                                 </div>
+                                <div class="form-group">
+                                    <label for="noContextShift">No Context Shift (--no-context-shift):
+                                        <span class="help-icon">
+                                            <div class="tooltip">Disables automatic context rotation when context is full. Default: off (context rotates gracefully). Enable if you need strict context boundaries -- generation stops at the limit instead of silently dropping old tokens.</div>
+                                        </span>
+                                    </label>
+                                    <input type="checkbox" id="noContextShift" class="form-control checkbox">
+                                </div>
                             </div>
-                            
+
+                            <h4>Agentic / Multi-Slot Settings</h4>
+                            <div class="form-group">
+                                <label for="nParallel">Parallel Slots (--n-parallel, -np):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Number of concurrent inference slots. Agents need 4-8 for parallel tool calling. Total context is divided across slots (e.g. 64K / 4 slots = 16K each). Requires Continuous Batching enabled.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="nParallel" class="form-control" min="1" placeholder="1 (default)">
+                            </div>
+                            <div class="form-group">
+                                <label for="slotPromptSimilarity">Slot Prompt Similarity (-sps):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Minimum prompt overlap (0-1) to reuse a slot's KV cache. Higher = more aggressive reuse. 0.5 default; 0.7-0.8 recommended for agents that send the same system prompt each turn.</div>
+                                    </span>
+                                </label>
+                                <input type="number" id="slotPromptSimilarity" class="form-control" min="0" max="1" step="0.05" placeholder="0.5 (default)">
+                            </div>
+                            <div class="form-group">
+                                <label for="slotSavePath">Slot Save Path (--slot-save-path):
+                                    <span class="help-icon">
+                                        <div class="tooltip">Directory to save/restore slot KV cache between sessions. Enables persistent context across server restarts. Leave blank to disable.</div>
+                                    </span>
+                                </label>
+                                <input type="text" id="slotSavePath" class="form-control" placeholder="e.g. ./llm_cache">
+                            </div>
+
                             <div class="form-group">
                                 <label for="numa">NUMA Optimization (--numa):
                                     <span class="help-icon">
@@ -426,6 +469,16 @@
                                     <option value="turbo3">turbo3 (TurboQuant 3-bit)</option>
                                     <option value="turbo4">turbo4 (TurboQuant 4-bit)</option>
                                 </select>
+                            </div>
+                            <div class="inline-checkboxes">
+                                <div class="form-group">
+                                    <label for="kvOffload">KV Cache in VRAM (-nkvo):
+                                        <span class="help-icon">
+                                            <div class="tooltip">Keep the entire KV cache in GPU VRAM instead of allowing spillover to system RAM. Faster inference but uses more VRAM. Recommended for low-latency agentic workloads.</div>
+                                        </span>
+                                    </label>
+                                    <input type="checkbox" id="kvOffload" class="form-control checkbox">
+                                </div>
                             </div>
 
                             <h4>Mixture of Experts (MoE)</h4>
