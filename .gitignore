@@ -49,3 +49,5 @@ llama-cpp-manager/
 *.txt
 using*
 /docs
+/scratch-pad/completed
+/worktickets

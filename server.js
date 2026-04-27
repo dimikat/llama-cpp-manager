@@ -8,6 +8,9 @@ const osUtils = require('os-utils');
 const crypto = require('crypto');
 const https = require('https');
 const AdmZip = require('adm-zip');
+const { setupSocketHandlers } = require('./socket-handlers');
+const instanceManager = require('./instance-manager');
+const { InstanceStatus } = require('./runtimes/instance-types');
 const app = express();
 const PORT = 7112;
 
@@ -16,9 +19,16 @@ app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Store the running process
-let runningProcess = null;
-let connectedClients = [];
+const DEFAULT_INSTANCE_ID = 'default-llamacpp';
+
+function isAnyInstanceRunning() {
+    const instances = instanceManager.listInstances();
+    return instances.some(i =>
+        i.status === InstanceStatus.RUNNING ||
+        i.status === InstanceStatus.LOADING ||
+        i.status === InstanceStatus.STOPPING
+    );
+}
 
 // Create WebSocket server for log streaming
 const httpServer = require('http').createServer(app);
@@ -27,6 +37,8 @@ const io = require('socket.io')(httpServer, {
         origin: "*"
     }
 });
+
+setupSocketHandlers(io);
 
 // Enhanced system monitoring variables
 let systemMetrics = {
@@ -247,50 +259,6 @@ async function updateSystemMetricsHistory() {
 // Start periodic system metrics collection
 setInterval(updateSystemMetricsHistory, 1000); // Update every second
 
-// Parse llama.cpp output for performance metrics and context usage
-function parsePerformanceMetrics(logData) {
-    // Debug: Log what we're trying to parse
-    if (logData.includes('t/s') || logData.includes('tokens/s') || logData.includes('tok/s')) {
-        console.log('DEBUG: Potential speed data found:', logData.trim());
-    }
-    
-    // Parse token generation speed
-    const speedPatterns = [
-        // Pattern: "12.34 tokens/s" or "12.34 t/s"
-        /([\d.]+)\s*(?:tokens?\/s|t\/s)/i,
-        // Pattern: "speed: 12.34 t/s"
-        /speed:\s*([\d.]+)\s*(?:tokens?\/s|t\/s)/i,
-        // Pattern: "12.34 tok/s"
-        /([\d.]+)\s*tok\/s/i,
-        // Pattern: generation speed indicators
-        /generated.*?([\d.]+)\s*(?:tokens?\/s|t\/s)/i,
-        // Pattern: llama_print_timings style output
-        /eval\s+time\s+=.*?([\d.]+)\s*tokens?\/s/i
-    ];
-    
-    for (const pattern of speedPatterns) {
-        const match = logData.match(pattern);
-        if (match) {
-            const speed = parseFloat(match[1]);
-            console.log(`DEBUG: Found speed match: ${speed} t/s from pattern: ${pattern}`);
-            if (speed > 0 && speed < 1000) { // Reasonable speed range
-                console.log(`DEBUG: Broadcasting speed: ${speed} t/s`);
-                // Broadcast speed update to all connected clients
-                connectedClients.forEach(client => {
-                    client.emit('token-speed', { speed: speed });
-                });
-                break; // Only process first match per log chunk
-            }
-        }
-    }
-    
-    // Parse context usage information
-    parseContextUsage(logData);
-}
-
-// Store the detected context size for later use
-let detectedContextSize = 16384; // Default fallback
-
 // Model metadata cache to avoid re-parsing GGUF files
 const modelMetadataCache = new Map();
 
@@ -480,128 +448,6 @@ function extractMetadataFromFilename(filePath, fileSize) {
     }
     
     return metadata;
-}
-
-// Parse context usage from llama.cpp output
-function parseContextUsage(logData) {
-    // Debug: Log all output to help identify patterns
-    if (logData && logData.trim()) {
-        console.log('DEBUG: Raw llama.cpp output for context parsing:', JSON.stringify(logData.trim()));
-    }
-    
-    // Enhanced patterns for context usage in llama.cpp output
-    const contextPatterns = [
-        // Modern slot-based patterns (common in recent llama.cpp) - these are the key ones!
-        /slot.*?n_past\s*=\s*(\d+).*?n_ctx_slot\s*=\s*(\d+)/is,
-        /slot.*?n_ctx_slot\s*=\s*(\d+).*?n_past\s*=\s*(\d+)/is, 
-        /slot.*?n_past\s*=\s*(\d+).*?truncated\s*=\s*\d+/i, // For release messages, we'll use stored context size
-        
-        // Request completion patterns
-        /generated\s+(\d+)\s+tokens.*?context\s*(?:size|length)?\s*(?:of\s*)?(\d+)/is,
-        /completion.*?(\d+)\s*\/\s*(\d+)\s+tokens/i,
-        
-        // Traditional patterns
-        /n_ctx\s*=\s*(\d+).*?n_past\s*=\s*(\d+)/is,
-        /context\s+size:\s*(\d+).*?tokens\s+processed:\s*(\d+)/is,
-        /ctx_size:\s*(\d+).*?n_past:\s*(\d+)/is,
-        
-        // Legacy patterns
-        /context.*?(\d+)\s*\/\s*(\d+)/i,
-        /used:\s*(\d+),?\s*total:\s*(\d+)/i,
-        /tokens?:\s*(\d+)\s*\/\s*(\d+)/i,
-        /kv\s+cache:\s*(\d+)\s*\/\s*(\d+)/i,
-        /prompt\s+eval\s+count:\s*(\d+).*?context\s+size:\s*(\d+)/i,
-        /prompt\s+tokens\s+=\s*(\d+).*?eval\s+count\s+=\s*(\d+)/is,
-        
-        // Additional modern patterns  
-        /n_tokens\s*=\s*(\d+).*?n_ctx\s*=\s*(\d+)/is,
-        /processed\s+(\d+)\s*\/\s*(\d+)\s+tokens/i,
-        
-        // Context size detection (for initialization)
-        /n_ctx\s*=\s*(\d+)/i  // Just context size, we'll use 0 for initial usage
-    ];
-    
-    for (let i = 0; i < contextPatterns.length; i++) {
-        const pattern = contextPatterns[i];
-        const match = logData.match(pattern);
-        if (match) {
-            console.log(`DEBUG: Pattern ${i} matched:`, pattern.toString(), 'Groups:', match);
-            
-            let used, total;
-            
-            // Handle different pattern formats
-            if (i === 0) { // slot n_past = X n_ctx_slot = Y
-                used = parseInt(match[1]);  // n_past
-                total = parseInt(match[2]); // n_ctx_slot
-                detectedContextSize = total; // Store for later use
-            } else if (i === 1) { // slot n_ctx_slot = Y n_past = X
-                total = parseInt(match[1]); // n_ctx_slot
-                used = parseInt(match[2]);  // n_past
-                detectedContextSize = total; // Store for later use
-            } else if (i === 2) { // slot n_past = X truncated = 0 (use stored context size)
-                used = parseInt(match[1]);  // n_past
-                total = detectedContextSize; // Use stored context size
-            } else if (i <= 4) { // Completion patterns: used first, total second
-                used = parseInt(match[1]);
-                total = parseInt(match[2]);
-            } else if (i <= 7) { // Traditional patterns: total first, used second
-                total = parseInt(match[1]); // n_ctx or context_size
-                used = parseInt(match[2]);  // n_past or tokens_processed
-            } else if (i === contextPatterns.length - 1) { // Context size only pattern
-                total = parseInt(match[1]); // n_ctx
-                used = 0; // No usage yet - this is initialization
-            } else {
-                // Legacy patterns - used first, total second
-                used = parseInt(match[1]);
-                total = parseInt(match[2]);
-            }
-            
-            // Special handling for prompt + eval pattern
-            if (pattern.toString().includes('prompt.*eval')) {
-                const evalCount = parseInt(match[2]);
-                used = used + evalCount; // Prompt tokens + generated tokens
-                // Use configured context size or estimate
-                total = 32768; // Will be overridden by frontend if context size is known
-                console.log(`DEBUG: Calculated prompt+eval usage: ${used}/${total} tokens`);
-                broadcastContextUpdate(used, total);
-                return;
-            }
-            
-            if (used >= 0 && total > 0 && used <= total) {
-                console.log(`DEBUG: Found context usage: ${used}/${total} tokens (pattern ${i})`);
-                broadcastContextUpdate(used, total);
-                return;
-            } else {
-                console.log(`DEBUG: Invalid values from pattern ${i}: used=${used}, total=${total}`);
-            }
-        }
-    }
-    
-    // Also look for context size initialization messages
-    const contextSizePattern = /context\s+size:\s*(\d+)/i;
-    const sizeMatch = logData.match(contextSizePattern);
-    if (sizeMatch) {
-        const contextSize = parseInt(sizeMatch[1]);
-        console.log(`DEBUG: Found context size: ${contextSize}`);
-        // Broadcast context size info
-        connectedClients.forEach(client => {
-            client.emit('context-size', { contextSize: contextSize });
-        });
-    }
-}
-
-// Broadcast context usage updates to all connected clients
-function broadcastContextUpdate(used, total) {
-    const percentage = (used / total) * 100;
-    console.log(`DEBUG: Broadcasting context update: ${used}/${total} (${percentage.toFixed(1)}%)`);
-    
-    connectedClients.forEach(client => {
-        client.emit('context-update', { 
-            used: used,
-            total: total,
-            percentage: percentage.toFixed(1)
-        });
-    });
 }
 
 // Function to recursively find GGUF files
@@ -2004,14 +1850,11 @@ app.post('/api/updater/download', async (req, res) => {
                 updaterDownloadState.totalBytes = total;
                 updaterDownloadState.progress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
 
-                // Broadcast progress to all connected clients
-                connectedClients.forEach(client => {
-                    client.emit('update-progress', {
-                        version: version,
-                        downloaded: downloaded,
-                        total: total,
-                        progress: updaterDownloadState.progress
-                    });
+                io.emit('update-progress', {
+                    version: version,
+                    downloaded: downloaded,
+                    total: total,
+                    progress: updaterDownloadState.progress
                 });
             });
 
@@ -2026,21 +1869,16 @@ app.post('/api/updater/download', async (req, res) => {
 
             await saveUpdaterState(state);
 
-            // Notify clients download is complete
-            connectedClients.forEach(client => {
-                client.emit('update-downloaded', {
-                    success: true,
-                    version: version,
-                    path: destPath
-                });
+            io.emit('update-downloaded', {
+                success: true,
+                version: version,
+                path: destPath
             });
 
         } catch (downloadError) {
             console.error('Download error:', downloadError);
-            connectedClients.forEach(client => {
-                client.emit('update-error', {
-                    error: downloadError.message
-                });
+            io.emit('update-error', {
+                error: downloadError.message
             });
         } finally {
             updaterDownloadState.inProgress = false;
@@ -2057,7 +1895,7 @@ app.post('/api/updater/download', async (req, res) => {
 app.post('/api/updater/apply', async (req, res) => {
     try {
         // Check if server is running
-        if (runningProcess && !runningProcess.killed) {
+        if (isAnyInstanceRunning()) {
             return res.status(400).json({
                 success: false,
                 error: 'Cannot apply update while llama-server is running. Please stop the server first.'
@@ -2202,13 +2040,10 @@ app.post('/api/updater/apply', async (req, res) => {
             console.warn('Could not clean up downloads directory:', cleanupError.message);
         }
 
-        // Notify clients
-        connectedClients.forEach(client => {
-            client.emit('update-applied', {
-                success: true,
-                version: version,
-                previousVersion: previousVersion
-            });
+        io.emit('update-applied', {
+            success: true,
+            version: version,
+            previousVersion: previousVersion
         });
 
         res.json({
@@ -2246,7 +2081,7 @@ app.get('/', (req, res) => {
 });
 
 // API endpoint to start the llama server
-app.post('/start', (req, res) => {
+app.post('/start', async (req, res) => {
     const { serverPath, args = [] } = req.body;
     
     if (!serverPath) {
@@ -2256,101 +2091,33 @@ app.post('/start', (req, res) => {
         });
     }
     
-    // Check if process is already running
-    if (runningProcess) {
+    if (isAnyInstanceRunning()) {
         return res.json({ 
             success: false, 
             error: 'Server is already running' 
         });
     }
     
-    // Process args to handle multi-part models
-    const processedArgs = [];
-    for (let i = 0; i < args.length; i++) {
-        if (args[i] === '-m' && i + 1 < args.length) {
-            let modelPath = args[i + 1];
-            
-            // Check if this is a multi-part model path
-            const multiPartPattern = /^(.*)-\d{1,5}-of-\d{1,5}\.gguf$/i;
-            const match = modelPath.match(multiPartPattern);
-            
-            if (match) {
-                // Extract base path without the part number
-                const basePath = match[1] + '.gguf';
-                console.log(`Multi-part model detected: ${modelPath} -> ${basePath}`);
-                processedArgs.push(args[i], basePath);
-                i++; // Skip the next argument since we processed it
-            } else {
-                processedArgs.push(args[i], modelPath);
-                i++; // Skip the next argument since we processed it
-            }
-        } else {
-            processedArgs.push(args[i]);
-        }
-    }
-    
-    // Start the server using spawn for better process control
     try {
-        console.log('Starting server with processed args:', processedArgs);
-        runningProcess = spawn(serverPath, processedArgs, { stdio: 'pipe' });
+        console.log('Starting server with args:', args);
         
-        // Handle process events
-        runningProcess.on('close', (code) => {
-            console.log(`Server process exited with code ${code}`);
-            runningProcess = null;
-            // Notify clients that the process has ended
-            connectedClients.forEach(client => {
-                client.emit('server-ended', { message: 'Server process has ended' });
-            });
-        });
-        
-        runningProcess.on('error', (error) => {
-            console.error(`Failed to start process: ${error}`);
-            runningProcess = null;
-            // Notify clients of error
-            connectedClients.forEach(client => {
-                client.emit('server-error', { message: 'Failed to start server: ' + error.message });
-            });
-        });
-        
-        // Stream stdout and stderr to connected clients
-        if (runningProcess.stdout) {
-            runningProcess.stdout.on('data', (data) => {
-                const logData = data.toString();
-                console.log('STDOUT:', logData);
-                
-                // DEBUG: Always log all output to help identify patterns
-                if (logData.trim()) {
-                    console.log('DEBUG: ALL llama.cpp stdout:', JSON.stringify(logData.trim()));
-                }
-                
-                // Parse for performance metrics
-                parsePerformanceMetrics(logData);
-                
-                // Broadcast to all connected clients
-                connectedClients.forEach(client => {
-                    client.emit('log-stream', { type: 'stdout', data: logData });
-                });
-            });
+        if (!instanceManager.getInstance(DEFAULT_INSTANCE_ID)) {
+            instanceManager.createInstance(DEFAULT_INSTANCE_ID, 'llamacpp');
+        } else {
+            const entry = instanceManager.getInstance(DEFAULT_INSTANCE_ID);
+            if (entry.status === InstanceStatus.ERROR) {
+                instanceManager.dismissError(DEFAULT_INSTANCE_ID);
+            }
         }
         
-        if (runningProcess.stderr) {
-            runningProcess.stderr.on('data', (data) => {
-                const logData = data.toString();
-                console.log('STDERR:', logData);
-                
-                // DEBUG: Also log stderr output for context patterns
-                if (logData.trim()) {
-                    console.log('DEBUG: ALL llama.cpp stderr:', JSON.stringify(logData.trim()));
-                }
-                
-                // Parse stderr output for performance and context metrics too
-                parsePerformanceMetrics(logData);
-                
-                // Broadcast to all connected clients
-                connectedClients.forEach(client => {
-                    client.emit('log-stream', { type: 'stderr', data: logData });
-                });
+        await instanceManager.startInstance(DEFAULT_INSTANCE_ID, { serverPath, args });
+        
+        const entry = instanceManager.getInstance(DEFAULT_INSTANCE_ID);
+        
+        if (entry.status === InstanceStatus.ERROR) {
+            return res.status(500).json({
+                success: false,
+                error: entry.errorMessage || 'Failed to start server'
             });
         }
         
@@ -2367,26 +2134,17 @@ app.post('/start', (req, res) => {
 });
 
 // API endpoint to stop the llama server
-app.post('/stop', (req, res) => {
-    if (!runningProcess) {
+app.post('/stop', async (req, res) => {
+    const entry = instanceManager.getInstance(DEFAULT_INSTANCE_ID);
+    if (!entry || !isAnyInstanceRunning()) {
         return res.json({ 
             success: false, 
             error: 'No server is currently running' 
         });
     }
     
-    // Kill the process gracefully
     try {
-        // Check if process is still running before attempting to kill
-        if (runningProcess && !runningProcess.killed) {
-            runningProcess.kill('SIGTERM'); // Try graceful shutdown first
-            setTimeout(() => {
-                if (runningProcess && !runningProcess.killed) {
-                    runningProcess.kill('SIGKILL'); // Force kill if still running
-                }
-            }, 1000);
-        }
-        runningProcess = null;
+        await instanceManager.stopInstance(DEFAULT_INSTANCE_ID);
         res.json({ 
             success: true, 
             message: 'Server stopped successfully' 
@@ -2443,22 +2201,7 @@ app.get('/metrics', (req, res) => {
 // API endpoint to check if server is running
 app.get('/status', (req, res) => {
     res.json({ 
-        running: !!runningProcess && !runningProcess.killed
-    });
-});
-
-// WebSocket connection handling for log streaming
-io.on('connection', (socket) => {
-    console.log('Client connected for log streaming');
-    connectedClients.push(socket);
-    
-    // Remove client when disconnected
-    socket.on('disconnect', () => {
-        console.log('Client disconnected from log streaming');
-        const index = connectedClients.indexOf(socket);
-        if (index > -1) {
-            connectedClients.splice(index, 1);
-        }
+        running: isAnyInstanceRunning()
     });
 });
 

@@ -1,6 +1,6 @@
 {
   "modelsPath": {
-    "source": "custom",
+    "source": "lmstudio",
     "customPath": "E:\\AI\\Models"
   },
   "version": "1.0"
