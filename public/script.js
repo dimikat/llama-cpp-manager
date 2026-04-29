@@ -1,4 +1,5 @@
 import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
+import { icon, iconSpan } from "./icons.js";
 
 // DOM Elements
 const serverPathInput = document.getElementById('serverPath');
@@ -101,11 +102,6 @@ const configNameInput = document.getElementById('configName');
 const saveConfigBtn = document.getElementById('saveConfigBtn');
 const cancelConfigBtn = document.getElementById('cancelConfigBtn');
 
-// Theme toggle elements
-const themeToggle = document.getElementById('themeToggle');
-const themeIcon = themeToggle.querySelector('.theme-icon');
-
-// Token speed elements
 const tokenSpeedDiv = document.getElementById('tokenSpeed');
 const speedValueSpan = document.getElementById('speedValue');
 
@@ -134,20 +130,29 @@ let socket = null;
 let currentConfigId = null;
 let configurations = {};
 
-// Theme management
-const THEME_STORAGE_KEY = 'llamaCppManagerTheme';
-const THEMES = {
-    LIGHT: 'light',
-    DARK: 'dark'
-};
-
-let currentTheme = THEMES.LIGHT;
-
-// Server path management
 const SERVER_PATH_KEY = 'llamaCppServerPath';
 
 // Tab management
 let currentTab = 'model';
+
+// Instance tab management
+let instanceTabs = [];
+let activeInstanceId = null;
+let instanceCounter = 0;
+
+const STATUS_COLORS = {
+    IDLE: 'status-idle',
+    LOADING: 'status-loading',
+    RUNNING: 'status-running',
+    STOPPING: 'status-stopping',
+    ERROR: 'status-error',
+    STOPPED: 'status-stopped',
+};
+
+const RUNTIME_LABELS = {
+    llamacpp: 'llama.cpp',
+    vllm: 'vLLM',
+};
 
 // Context visualization variables
 let contextSize = 0;
@@ -162,34 +167,6 @@ let chartData = {
     vram: []
 };
 
-// Theme management functions
-function loadTheme() {
-    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-    currentTheme = savedTheme || THEMES.LIGHT;
-    applyTheme(currentTheme);
-}
-
-function applyTheme(theme) {
-    const body = document.body;
-    
-    if (theme === THEMES.DARK) {
-        body.setAttribute('data-theme', 'dark');
-        themeIcon.textContent = '☀️';
-    } else {
-        body.removeAttribute('data-theme');
-        themeIcon.textContent = '🌙';
-    }
-    
-    currentTheme = theme;
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-}
-
-function toggleTheme() {
-    const newTheme = currentTheme === THEMES.LIGHT ? THEMES.DARK : THEMES.LIGHT;
-    applyTheme(newTheme);
-}
-
-// Tooltip positioning system with absolute containment
 function initTooltips() {
     const tooltips = document.querySelectorAll('.tooltip');
     
@@ -547,13 +524,13 @@ function updateContextVisualization(used, total, percentage) {
         if (contextWarning) {
             contextWarning.classList.add('critical');
             contextWarning.style.display = 'block';
-            contextWarning.innerHTML = '🚨 Context Almost Full - Consider increasing context size or clearing history';
+            contextWarning.innerHTML = iconSpan('siren', 14) + ' Context Almost Full - Consider increasing context size or clearing history';
         }
     } else if (percentage >= 80) {
         contextUsed.classList.add('warning');
         if (contextWarning) {
             contextWarning.style.display = 'block';
-            contextWarning.innerHTML = '⚠️ Context usage is high - consider using a larger context size or clearing conversation history';
+            contextWarning.innerHTML = iconSpan('warning', 14) + ' Context usage is high - consider using a larger context size or clearing conversation history';
         }
     }
     
@@ -609,7 +586,6 @@ function openServerInBrowser() {
 // Tab management functions
 function initTabs() {
     const tabButtons = document.querySelectorAll('.tab-button');
-    const tabPanels = document.querySelectorAll('.tab-panel');
     
     tabButtons.forEach(button => {
         button.addEventListener('click', (e) => {
@@ -620,7 +596,6 @@ function initTabs() {
 }
 
 function switchTab(tabId) {
-    // Update active states
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.classList.remove('active');
     });
@@ -628,7 +603,6 @@ function switchTab(tabId) {
         panel.classList.remove('active');
     });
     
-    // Activate selected tab and panel
     const targetButton = document.querySelector(`[data-tab="${tabId}"]`);
     const targetPanel = document.getElementById(`tab-${tabId}`);
     
@@ -637,6 +611,212 @@ function switchTab(tabId) {
         targetPanel.classList.add('active');
         currentTab = tabId;
     }
+}
+
+// Instance tab management
+function initInstanceTabs() {
+    const newInstanceBtn = document.getElementById('newInstanceBtn');
+    const runtimePickerOverlay = document.getElementById('runtimePickerOverlay');
+
+    if (newInstanceBtn) {
+        newInstanceBtn.addEventListener('click', () => {
+            openRuntimePicker();
+        });
+    }
+
+    if (runtimePickerOverlay) {
+        runtimePickerOverlay.addEventListener('click', (e) => {
+            if (e.target === runtimePickerOverlay) {
+                closeRuntimePicker();
+            }
+        });
+
+        runtimePickerOverlay.querySelectorAll('.runtime-picker-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const runtime = card.getAttribute('data-runtime');
+                createInstanceTab(runtime);
+                closeRuntimePicker();
+            });
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const overlay = document.getElementById('runtimePickerOverlay');
+            if (overlay && overlay.classList.contains('visible')) {
+                closeRuntimePicker();
+            }
+        }
+    });
+
+    const defaultInstance = {
+        id: 'default-llamacpp',
+        runtime: 'llamacpp',
+        modelName: 'Untitled',
+        status: 'IDLE',
+    };
+    instanceTabs = [defaultInstance];
+    activeInstanceId = defaultInstance.id;
+    renderInstanceTabs();
+}
+
+function openRuntimePicker() {
+    const overlay = document.getElementById('runtimePickerOverlay');
+    if (overlay) {
+        overlay.classList.add('visible');
+        overlay.querySelectorAll('.runtime-picker-card').forEach(c => c.classList.remove('selected'));
+    }
+}
+
+function closeRuntimePicker() {
+    const overlay = document.getElementById('runtimePickerOverlay');
+    if (overlay) {
+        overlay.classList.remove('visible');
+    }
+}
+
+function createInstanceTab(runtime) {
+    instanceCounter++;
+    const instanceId = `instance-${Date.now()}-${instanceCounter}`;
+
+    const newInstance = {
+        id: instanceId,
+        runtime: runtime,
+        modelName: 'Untitled',
+        status: 'IDLE',
+    };
+
+    instanceTabs.push(newInstance);
+
+    if (socket && socket.connected) {
+        socket.emit('instance:create', { instanceId, runtime });
+        socket.emit('instance:join', instanceId);
+    }
+
+    createInstancePanel(instanceId);
+    switchInstanceTab(instanceId);
+    renderInstanceTabs();
+}
+
+function createInstancePanel(instanceId) {
+    const instanceContent = document.getElementById('instanceContent');
+    if (!instanceContent) return;
+
+    const panel = document.createElement('div');
+    panel.className = 'instance-panel';
+    panel.setAttribute('data-instance-id', instanceId);
+    panel.id = `instancePanel-${instanceId}`;
+    panel.innerHTML = `
+        <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+            <p>Instance configuration will be available here.</p>
+            <p style="font-size: 12px; margin-top: 8px;">Instance ID: ${instanceId}</p>
+        </div>
+    `;
+    instanceContent.appendChild(panel);
+}
+
+function removeInstanceTab(instanceId) {
+    if (instanceTabs.length <= 1) return;
+
+    instanceTabs = instanceTabs.filter(t => t.id !== instanceId);
+
+    const panel = document.getElementById(`instancePanel-${instanceId}`);
+    if (panel) panel.remove();
+
+    if (activeInstanceId === instanceId) {
+        const firstTab = instanceTabs[0];
+        if (firstTab) {
+            switchInstanceTab(firstTab.id);
+        }
+    }
+
+    renderInstanceTabs();
+}
+
+function switchInstanceTab(instanceId) {
+    activeInstanceId = instanceId;
+
+    document.querySelectorAll('.instance-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+
+    const targetPanel = document.getElementById(`instancePanel-${instanceId}`);
+    if (targetPanel) {
+        targetPanel.classList.add('active');
+    }
+
+    document.querySelectorAll('.instance-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.getAttribute('data-instance-id') === instanceId);
+    });
+}
+
+function renderInstanceTabs() {
+    const tabsContainer = document.getElementById('instanceTabs');
+    if (!tabsContainer) return;
+
+    tabsContainer.innerHTML = '';
+
+    instanceTabs.forEach(instance => {
+        const tab = document.createElement('button');
+        tab.className = `instance-tab${instance.id === activeInstanceId ? ' active' : ''}`;
+        tab.setAttribute('data-instance-id', instance.id);
+
+        const statusClass = STATUS_COLORS[instance.status] || 'status-idle';
+        const runtimeLabel = RUNTIME_LABELS[instance.runtime] || instance.runtime;
+
+        tab.innerHTML = `
+            <span class="instance-tab-status ${statusClass}"></span>
+            <span class="instance-tab-runtime">${runtimeLabel}</span>
+            <span class="instance-tab-name">${escapeHtml(instance.modelName)}</span>
+            ${instance.id !== 'default-llamacpp' ? '<span class="instance-tab-close" title="Close instance">&times;</span>' : ''}
+        `;
+
+        tab.addEventListener('click', (e) => {
+            if (e.target.closest('.instance-tab-close')) {
+                e.stopPropagation();
+                removeInstanceTab(instance.id);
+                return;
+            }
+            switchInstanceTab(instance.id);
+        });
+
+        tabsContainer.appendChild(tab);
+    });
+}
+
+function updateInstanceStatus(instanceId, status) {
+    const tab = instanceTabs.find(t => t.id === instanceId);
+    if (!tab) {
+        const existingTab = instanceTabs.find(t => t.id === instanceId);
+        if (!existingTab) return;
+    }
+
+    if (tab) {
+        tab.status = status;
+    }
+
+    const statusDot = document.querySelector(`.instance-tab[data-instance-id="${instanceId}"] .instance-tab-status`);
+    if (statusDot) {
+        statusDot.className = `instance-tab-status ${STATUS_COLORS[status] || 'status-idle'}`;
+    }
+}
+
+function updateInstanceModelName(instanceId, modelName) {
+    const tab = instanceTabs.find(t => t.id === instanceId);
+    if (!tab) return;
+
+    tab.modelName = modelName || 'Untitled';
+
+    const nameEl = document.querySelector(`.instance-tab[data-instance-id="${instanceId}"] .instance-tab-name`);
+    if (nameEl) {
+        nameEl.textContent = tab.modelName;
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Update status display
@@ -675,17 +855,18 @@ async function fetchStatus() {
 // Get architecture icon for model display
 function getArchitectureIcon(architecture) {
     const icons = {
-        'Llama': '🦙',
-        'CodeLlama': '👨‍💻',
-        'Gemma': '💎', 
-        'Mistral': '🌟',
-        'Mixtral': '🔥',
-        'Qwen': '🤖',
-        'GLM': '🧠',
-        'DeepSeek': '🔍',
-        'Unknown': '📄'
+        'Llama': 'chip',
+        'CodeLlama': 'codeBraces',
+        'Gemma': 'diamond',
+        'Mistral': 'star',
+        'Mixtral': 'fire',
+        'Qwen': 'bot',
+        'GLM': 'brain',
+        'DeepSeek': 'search',
+        'Unknown': 'file'
     };
-    return icons[architecture] || icons['Unknown'];
+    const name = icons[architecture] || icons['Unknown'];
+    return icon(name, 14);
 }
 
 // Fetch and populate models dropdown
@@ -724,7 +905,7 @@ async function fetchModels() {
                 
                 // Add multi-part indicator if applicable
                 if (model.isMultiPart && !model.allPartsPresent) {
-                    displayText = '⚠️ ' + displayText; // Add warning for incomplete multi-part models
+                    displayText = iconSpan('warning', 14) + ' ' + displayText;
                 }
                 
                 if (params || quant || context) {
@@ -753,7 +934,7 @@ async function fetchModels() {
                     if (model.allPartsPresent) {
                         option.title = `Multi-part model: ${model.totalParts} parts combined (${sizeMB} total)`;
                     } else {
-                        option.title = `⚠️ Incomplete multi-part model: ${model.availableParts}/${model.totalParts} parts available`;
+                        option.title = `Incomplete multi-part model: ${model.availableParts}/${model.totalParts} parts available`;
                     }
                 }
                 
@@ -812,7 +993,7 @@ function populateDraftModels(allModels) {
             if (model.allPartsPresent) {
                 option.title = `Multi-part draft model: ${model.totalParts} parts combined (${sizeMB} total)`;
             } else {
-                option.title = `⚠️ Incomplete multi-part draft model: ${model.availableParts}/${model.totalParts} parts available`;
+                option.title = `Incomplete multi-part draft model: ${model.availableParts}/${model.totalParts} parts available`;
             }
         }
         
@@ -838,7 +1019,7 @@ function populateDraftModels(allModels) {
                 if (model.allPartsPresent) {
                     option.title = `Potential multi-part draft model: ${model.totalParts} parts combined (${sizeMB} total)`;
                 } else {
-                    option.title = `⚠️ Incomplete potential multi-part draft model: ${model.availableParts}/${model.totalParts} parts available`;
+                    option.title = `Incomplete potential multi-part draft model: ${model.availableParts}/${model.totalParts} parts available`;
                 }
             }
             
@@ -1483,6 +1664,7 @@ function initWebSocket() {
         socket.on('connect', () => {
             console.log('Connected to WebSocket server for log streaming');
             showOutput('Connected to server for real-time logging');
+            socket.emit('instance:join', 'default-llamacpp');
         });
         
         socket.on('log-stream', (data) => {
@@ -1537,6 +1719,31 @@ function initWebSocket() {
         socket.on('server-error', (data) => {
             console.error('Server error:', data.message);
             showOutput('Server error: ' + data.message);
+        });
+
+        socket.on('instance:status', (data) => {
+            if (data && data.instanceId && data.status) {
+                updateInstanceStatus(data.instanceId, data.status);
+                if (data.instanceId === 'default-llamacpp') {
+                    if (data.status === 'RUNNING') {
+                        updateStatus(true);
+                    } else if (data.status === 'STOPPED' || data.status === 'IDLE' || data.status === 'ERROR') {
+                        updateStatus(false);
+                    }
+                }
+            }
+        });
+
+        socket.on('instance:ready', (data) => {
+            if (data && data.instanceId) {
+                updateInstanceStatus(data.instanceId, 'RUNNING');
+            }
+        });
+
+        socket.on('instance:error', (data) => {
+            if (data && data.instanceId) {
+                updateInstanceStatus(data.instanceId, 'ERROR');
+            }
         });
         
         socket.on('disconnect', () => {
@@ -1608,8 +1815,8 @@ function renderConfigList() {
         configItem.innerHTML = `
             <span class="config-item-name">${config.name || 'Unnamed Configuration'}</span>
             <div class="config-item-actions">
-                <button class="config-item-btn edit-btn" data-id="${config.id}" data-name="${config.name}">✏️</button>
-                <button class="config-item-btn delete-btn" data-id="${config.id}" data-name="${config.name}">🗑️</button>
+                <button class="config-item-btn edit-btn" data-id="${config.id}" data-name="${config.name}">${icon('edit', 14)}</button>
+                <button class="config-item-btn delete-btn" data-id="${config.id}" data-name="${config.name}">${icon('trash', 14)}</button>
             </div>
         `;
         
@@ -2009,15 +2216,15 @@ function analyzeModelAndRecommendSettings() {
     
     // Model size recommendations
     if (modelName.includes('7b') || modelName.includes('8b')) {
-        output.push('💡 Detected small model (7B-8B): High Performance Single GPU preset recommended');
+        output.push('Detected small model (7B-8B): High Performance Single GPU preset recommended');
         if (parseInt(batchSizeInput.value) < 2048) batchSizeInput.value = '2048';
         if (parseInt(ubatchSizeInput.value) < 512) ubatchSizeInput.value = '512';
     } else if (modelName.includes('13b') || modelName.includes('14b') || modelName.includes('15b')) {
-        output.push('💡 Detected medium model (13B-15B): Consider Balanced Dual GPU for better performance');
+        output.push('Detected medium model (13B-15B): Consider Balanced Dual GPU for better performance');
     } else if (modelName.includes('30b') || modelName.includes('34b') || modelName.includes('70b') || modelName.includes('72b')) {
-        output.push('💡 Detected large model (30B+): Large Model Dual GPU preset strongly recommended');
+        output.push('Detected large model (30B+): Large Model Dual GPU preset strongly recommended');
         if (parseInt(contextSizeInput.value) > 8192) {
-            output.push('⚠️ Large context with big model may require CPU offloading');
+            output.push('Large context with big model may require CPU offloading');
         }
     }
     
@@ -2032,18 +2239,18 @@ function analyzeModelAndRecommendSettings() {
             const fileSizeGB = Math.round(fileSizeMB / 1024);
             
             if (fileSizeGB > 50) {
-                output.push(`🚀 Multi-part model detected (${fileSizeGB}GB): Consider reducing GPU layers for 24GB cards`);
+                output.push(`Multi-part model detected (${fileSizeGB}GB): Consider reducing GPU layers for 24GB cards`);
                 
                 // Auto-suggest conservative GPU layer count for large models
                 if (parseInt(nglInput.value) >= 99 && fileSizeGB > 50) {
                     const suggestedLayers = fileSizeGB > 80 ? 25 : fileSizeGB > 60 ? 35 : 45;
-                    output.push(`💾 Recommended GPU layers: ${suggestedLayers} (currently set to ${nglInput.value})`);
+                    output.push(`Recommended GPU layers: ${suggestedLayers} (currently set to ${nglInput.value})`);
                     
                     // Detect high-RAM systems and recommend hybrid loading
                     if (fileSizeGB > 60 && navigator.deviceMemory && navigator.deviceMemory >= 64) {
-                        output.push(`🚀 High RAM system detected (≥64GB): Try "High RAM Hybrid (128GB+)" preset for optimal performance`);
+                        output.push(`High RAM system detected (>=64GB): Try "High RAM Hybrid (128GB+)" preset for optimal performance`);
                     } else if (fileSizeGB > 60) {
-                        output.push(`💡 For large models like this, consider "High RAM Hybrid (128GB+)" preset if you have ≥64GB DDR5 RAM`);
+                        output.push(`For large models like this, consider "High RAM Hybrid (128GB+)" preset if you have >=64GB DDR5 RAM`);
                     }
                 }
             }
@@ -2052,9 +2259,9 @@ function analyzeModelAndRecommendSettings() {
     
     // Quantization recommendations
     if (modelName.includes('q2_k') || modelName.includes('q3_k')) {
-        output.push('📊 Low quantization detected: Consider higher batch sizes for better throughput');
+        output.push('Low quantization detected: Consider higher batch sizes for better throughput');
     } else if (modelName.includes('q8_0') || modelName.includes('f16') || modelName.includes('f32')) {
-        output.push('📊 High precision model: May require reduced batch size or CPU offloading');
+        output.push('High precision model: May require reduced batch size or CPU offloading');
     }
     
     // Display recommendations
@@ -2066,11 +2273,18 @@ function analyzeModelAndRecommendSettings() {
 }
 
 // Initialize the application
-async function init() {
-    // Load theme first
-    loadTheme();
+function renderDataIcons() {
+    document.querySelectorAll('[data-icon]').forEach(el => {
+        const name = el.getAttribute('data-icon');
+        const size = el.classList.contains('banner-icon') ? 20 : 16;
+        el.innerHTML = icon(name, size);
+        el.classList.add('icon');
+    });
+}
 
-    // Load server path independently
+async function init() {
+    renderDataIcons();
+
     const savedServerPath = loadServerPath();
     if (savedServerPath) {
         serverPathInput.value = savedServerPath;
@@ -2169,14 +2383,12 @@ async function init() {
     if (presetGemma4Btn) presetGemma4Btn.addEventListener('click', applyGemma4Preset);
     if (presetAgenticCodingBtn) presetAgenticCodingBtn.addEventListener('click', applyAgenticCodingPreset);
     
-    // Set up theme toggle event listener
-    themeToggle.addEventListener('click', toggleTheme);
-    
     // Initialize tooltips
     initTooltips();
     
     // Initialize tabs
     initTabs();
+    initInstanceTabs();
 
     // Initialize updater module
     initUpdater();
@@ -2192,6 +2404,14 @@ async function init() {
     
     // Set up model change handler for automatic recommendations
     modelPathSelect.addEventListener('change', analyzeModelAndRecommendSettings);
+
+    modelPathSelect.addEventListener('change', function() {
+        const selectedOption = modelPathSelect.options[modelPathSelect.selectedIndex];
+        const modelName = selectedOption && selectedOption.value
+            ? selectedOption.textContent.replace(/\.gguf$/i, '')
+            : 'Untitled';
+        updateInstanceModelName('default-llamacpp', modelName);
+    });
     
     // Set up server path auto-save when changed
     serverPathInput.addEventListener('input', function() {
@@ -2502,7 +2722,7 @@ function updateGPUMetrics(gpus) {
         gpuCard.className = 'gpu-card';
         
         const tempClass = gpu.temperature > 80 ? 'hot' : gpu.temperature > 65 ? 'warm' : 'normal';
-        const thermalWarning = gpu.thermalThrottling ? ' ⚠️' : '';
+        const thermalWarning = gpu.thermalThrottling ? ' ' + icon('warning', 12) : '';
         
         gpuCard.innerHTML = `
             <div class="gpu-header">
@@ -2730,7 +2950,7 @@ async function checkForUpdates() {
     if (!checkUpdatesBtn) return;
 
     checkUpdatesBtn.disabled = true;
-    checkUpdatesBtn.innerHTML = '<span class="btn-icon">⏳</span> Checking...';
+        checkUpdatesBtn.innerHTML = `<span class="btn-icon">${icon('search')}</span> Checking...`;
 
     try {
         // Include server path for auto-detection
@@ -2767,7 +2987,7 @@ async function checkForUpdates() {
         addUpdaterMessage(`Error: ${error.message}`, 'error');
     } finally {
         checkUpdatesBtn.disabled = false;
-        checkUpdatesBtn.innerHTML = '<span class="btn-icon">🔍</span> Check for Updates';
+        checkUpdatesBtn.innerHTML = `<span class="btn-icon">${icon('search')}</span> Check for Updates`;
     }
 }
 
@@ -2776,7 +2996,7 @@ async function downloadUpdate() {
     if (!downloadUpdateBtn) return;
 
     downloadUpdateBtn.disabled = true;
-    downloadUpdateBtn.innerHTML = '<span class="btn-icon">⏳</span> Starting...';
+    downloadUpdateBtn.innerHTML = `<span class="btn-icon">${icon('clock')}</span> Starting...`;
 
     if (downloadProgressSection) {
         downloadProgressSection.style.display = 'block';
@@ -2805,7 +3025,7 @@ async function downloadUpdate() {
         downloadUpdateBtn.disabled = false;
     }
 
-    downloadUpdateBtn.innerHTML = '<span class="btn-icon">⬇️</span> Download Update';
+    downloadUpdateBtn.innerHTML = `<span class="btn-icon">${icon('download')}</span> Download Update`;
 }
 
 // Apply update
@@ -2818,7 +3038,7 @@ async function applyUpdate() {
     }
 
     applyUpdateBtn.disabled = true;
-    applyUpdateBtn.innerHTML = '<span class="btn-icon">⏳</span> Applying...';
+    applyUpdateBtn.innerHTML = `<span class="btn-icon">${icon('clock')}</span> Applying...`;
 
     try {
         const response = await fetch('/api/updater/apply', { method: 'POST' });
@@ -2846,7 +3066,7 @@ async function applyUpdate() {
         addUpdaterMessage(`Error: ${error.message}`, 'error');
     } finally {
         applyUpdateBtn.disabled = !updaterState.pendingUpdate;
-        applyUpdateBtn.innerHTML = '<span class="btn-icon">📦</span> Apply Update';
+        applyUpdateBtn.innerHTML = `<span class="btn-icon">${icon('package')}</span> Apply Update`;
     }
 }
 
