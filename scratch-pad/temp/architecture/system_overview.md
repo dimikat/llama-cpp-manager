@@ -1,8 +1,9 @@
 # System Architecture Overview — Multi-Runtime Instance Manager
 
 **Version:** 2.0 (redesign)
-**Date:** 2026-04-27
-**Status:** Stage 3 Architecture — Pending PM Review
+**Date:** 2026-04-28 (updated with design system context)
+**Status:** Phases A-B complete. Phase C pending.
+**Design references:** `PRODUCT.md` (strategic), `DESIGN.md` (visual system)
 
 ---
 
@@ -72,6 +73,9 @@ Each instance tab is a self-contained single-page view. No sub-tabs. The flag fo
 ### 4. Config and secrets are separated
 Named instance configs (model path, flags, port, etc.) are stored in `data/instance_configs.json`. Secrets (HF token) are stored in `data/secrets.json`. Secrets are never included in config exports.
 
+### 5. Instrument Panel design system (Phase C)
+The UI follows the visual system defined in DESIGN.md: dark theme with warm-tinted neutrals (amber hue direction), single amber-gold accent (#C89038) used on less than 10% of any screen, flat tonal elevation (Base/Raised/Overlay/Hover), Plus Jakarta Sans for UI text, IBM Plex Mono for machine-readable values, SVG icons only (no emojis), ease-out-quart transitions. The design system is the authority for all visual decisions in Phase C and beyond.
+
 ---
 
 ## Data Flow: Instance Lifecycle
@@ -118,6 +122,9 @@ Unexpected exit
 | vLLM deployment | Docker Desktop + `vllm/vllm-openai` via `docker.exe` | Proven by PM, clean lifecycle, no Python env management |
 | Tensor parallel | `--tensor-parallel-size 2`, `--ipc=host` | NCCL SHM fallback (no PCIe P2P on WSL2) — validated |
 | Tooltip positioning | Floating UI library | Correctly handles viewport edges; ~12 KB gzipped |
+| Design system | DESIGN.md tokens, dark theme, amber accent | "Instrument Panel" metaphor; precise, calm, technical |
+| UI typography | Plus Jakarta Sans (UI), IBM Plex Mono (values) | Technical but approachable; 13px body for density |
+| Icon system | SVG icons (16/20px) | Consistent, color-controllable, no emoji dependency |
 | Metrics source — vLLM | Prometheus `/metrics` endpoint poll | Structured, reliable; not stdout-parsed |
 | Metrics source — llama.cpp | Existing stdout regex parsing | No change to existing implementation |
 | Config persistence | `data/instance_configs.json` | Consistent with existing data/ pattern |

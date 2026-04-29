@@ -3,6 +3,7 @@
 const { EventEmitter } = require('events');
 const { InstanceStatus } = require('./runtimes/instance-types');
 const LlamaCppAdapter = require('./runtimes/llamacpp-adapter');
+const VllmAdapter = require('./runtimes/vllm-adapter');
 
 const LOG_BUFFER_MAX = 500;
 
@@ -17,6 +18,7 @@ const VALID_TRANSITIONS = {
 
 const ADAPTER_FACTORIES = {
     llamacpp: () => new LlamaCppAdapter(),
+    vllm: () => new VllmAdapter(),
 };
 
 class InstanceManager extends EventEmitter {
@@ -67,6 +69,18 @@ class InstanceManager extends EventEmitter {
         let subscribed = false;
 
         try {
+            if (entry.runtime === 'vllm' && typeof entry.adapter.preflight === 'function') {
+                const portConflict = this._checkPortConflict(instanceId, config.port);
+                if (portConflict) {
+                    throw new Error(portConflict);
+                }
+
+                const result = await entry.adapter.preflight(config);
+                if (!result.ok) {
+                    throw new Error(result.errors.join('\n'));
+                }
+            }
+
             await entry.adapter.spawn(instanceId, config);
 
             const adapterLogEmitter = entry.adapter.logs(instanceId);
@@ -83,6 +97,11 @@ class InstanceManager extends EventEmitter {
 
             this._transition(instanceId, InstanceStatus.RUNNING);
             entry.startedAt = new Date();
+
+            if (entry.runtime === 'vllm' && typeof entry.adapter.collectMetrics === 'function') {
+                this._startMetricsPolling(instanceId);
+            }
+
             this.emit('ready', { instanceId, port: entry.port });
         } catch (err) {
             if (!subscribed) {
@@ -109,6 +128,8 @@ class InstanceManager extends EventEmitter {
         }
 
         this._transition(instanceId, InstanceStatus.STOPPING);
+
+        this._stopMetricsPolling(instanceId);
 
         try {
             await entry.adapter.stop(instanceId);
@@ -213,6 +234,40 @@ class InstanceManager extends EventEmitter {
         this.emit('status-changed', { instanceId, oldStatus, newStatus });
     }
 
+    _checkPortConflict(instanceId, port) {
+        if (!port) return null;
+        for (const [id, entry] of this._instanceMap) {
+            if (id !== instanceId && entry.port === port &&
+                [InstanceStatus.RUNNING, InstanceStatus.LOADING].includes(entry.status)) {
+                return `Port ${port} is already in use by another instance.`;
+            }
+        }
+        return null;
+    }
+
+    _startMetricsPolling(instanceId) {
+        const entry = this._instanceMap.get(instanceId);
+        if (!entry || !entry.adapter) return;
+
+        this._stopMetricsPolling(instanceId);
+
+        entry.metricsInterval = setInterval(async () => {
+            try {
+                await entry.adapter.collectMetrics(instanceId);
+            } catch { /* non-fatal */ }
+        }, 2000);
+    }
+
+    _stopMetricsPolling(instanceId) {
+        const entry = this._instanceMap.get(instanceId);
+        if (!entry) return;
+
+        if (entry.metricsInterval) {
+            clearInterval(entry.metricsInterval);
+            entry.metricsInterval = null;
+        }
+    }
+
     _subscribeAdapterLogs(instanceId, emitter) {
         if (!emitter) return;
 
@@ -232,6 +287,7 @@ class InstanceManager extends EventEmitter {
             if (entry.status === InstanceStatus.STOPPING) {
                 this._transition(instanceId, InstanceStatus.STOPPED);
             } else if (entry.status === InstanceStatus.RUNNING || entry.status === InstanceStatus.LOADING) {
+                this._stopMetricsPolling(instanceId);
                 entry.errorMessage = `Process exited unexpectedly with code ${code}`;
                 this._transition(instanceId, InstanceStatus.ERROR);
                 this.emit('error', {

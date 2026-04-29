@@ -1,9 +1,9 @@
 {
   "currentVersion": {
-    "build": "b8692",
+    "build": "b8966",
     "platform": "win-cuda-12.4-x64",
-    "zipFilename": "cudart-llama-bin-win-cuda-12.4-x64.zip",
-    "installedDate": "2026-04-07T19:54:19.225Z",
+    "zipFilename": "llama-b8966-bin-win-cuda-12.4-x64.zip",
+    "installedDate": "2026-04-29T01:25:05.177Z",
     "detectionMethod": "updated"
   },
   "platform": "win-cuda-12.4-x64",
@@ -12,8 +12,24 @@
     "autoCheckEnabled": false,
     "keepBackups": 3
   },
-  "lastCheck": null,
+  "lastCheck": {
+    "timestamp": "2026-04-29T01:25:20.896Z",
+    "latestVersion": "b8966",
+    "updateAvailable": false,
+    "buildsBehind": null,
+    "asset": {
+      "name": "llama-b8966-bin-win-cuda-12.4-x64.zip",
+      "size": 214536059,
+      "downloadUrl": "https://github.com/ggml-org/llama.cpp/releases/download/b8966/llama-b8966-bin-win-cuda-12.4-x64.zip"
+    }
+  },
   "updateHistory": [
+    {
+      "from": "b8692",
+      "to": "b8966",
+      "date": "2026-04-29T01:25:05.177Z",
+      "backupPath": "llama-backup-b8692-2026-04-29T01-25-00"
+    },
     {
       "from": "b6133",
       "to": "b8692",

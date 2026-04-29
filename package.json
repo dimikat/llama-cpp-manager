@@ -8,6 +8,7 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.7.6",
     "adm-zip": "^0.5.10",
     "child_process": "^1.0.2",
     "express": "^4.21.2",

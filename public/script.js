@@ -1,5 +1,6 @@
 import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
 import { icon, iconSpan } from "./icons.js";
+import { computePosition, offset, flip, shift, arrow } from "@floating-ui/dom";
 
 // DOM Elements
 const serverPathInput = document.getElementById('serverPath');
@@ -85,22 +86,20 @@ const customModelsPathInput = document.getElementById('customModelsPath');
 const activeModelsPathSpan = document.getElementById('activeModelsPath');
 const refreshModelsBtn = document.getElementById('refreshModelsBtn');
 
-const launchBtn = document.getElementById('launchBtn');
-const stopBtn = document.getElementById('stopBtn');
-const openServerBtn = document.getElementById('openServerBtn');
-const testContextBtn = document.getElementById('testContextBtn');
 const modelStatusMessage = document.getElementById('modelStatusMessage');
 const modelProcessInfo = document.getElementById('modelProcessInfo');
 const modelOutput = document.getElementById('modelOutput');
 
-// Configuration management elements
-const configList = document.getElementById('configList');
-const addConfigBtn = document.getElementById('addConfigBtn');
 const configFormContainer = document.getElementById('configFormContainer');
 const configFormTitle = document.getElementById('configFormTitle');
 const configNameInput = document.getElementById('configName');
 const saveConfigBtn = document.getElementById('saveConfigBtn');
 const cancelConfigBtn = document.getElementById('cancelConfigBtn');
+
+const launchBtn = document.getElementById('launchBtn');
+const stopBtn = document.getElementById('stopBtn');
+const openServerBtn = document.getElementById('openServerBtn');
+const testContextBtn = document.getElementById('testContextBtn');
 
 const tokenSpeedDiv = document.getElementById('tokenSpeed');
 const speedValueSpan = document.getElementById('speedValue');
@@ -122,6 +121,147 @@ const downloadProgressBytes = document.getElementById('downloadProgressBytes');
 const updaterMessages = document.getElementById('updaterMessages');
 const updaterInstallPath = document.getElementById('updaterInstallPath');
 const detectInstallPathBtn = document.getElementById('detectInstallPathBtn');
+
+const ACCORDION_STATE_KEY = 'llamaCppAccordionState';
+
+const RUNTIME_GROUPS = {
+    llamacpp: ['model', 'performance', 'memory', 'concurrency', 'speculative', 'networking', 'advanced'],
+    vllm: ['model', 'performance', 'memory', 'concurrency', 'speculative', 'kv-transfer', 'networking', 'advanced'],
+};
+
+const DEFAULT_EXPANDED = { model: true };
+
+function initAccordion() {
+    const accordion = document.getElementById('configAccordion');
+    if (!accordion) return;
+
+    const savedState = loadAccordionState();
+    const runtime = getCurrentRuntime();
+
+    accordion.querySelectorAll('.accordion-group').forEach(group => {
+        const groupName = group.dataset.group;
+        const header = group.querySelector('.accordion-header');
+        const content = group.querySelector('.accordion-content');
+        if (!header || !content) return;
+
+        const isVisible = isGroupVisible(groupName, runtime);
+        if (!isVisible) {
+            group.setAttribute('data-hidden', 'true');
+        } else {
+            group.removeAttribute('data-hidden');
+        }
+
+        const isExpanded = savedState[groupName] !== undefined
+            ? savedState[groupName]
+            : !!DEFAULT_EXPANDED[groupName];
+
+        header.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+        content.setAttribute('aria-hidden', isExpanded ? 'false' : 'true');
+
+        header.addEventListener('click', () => {
+            toggleAccordionGroup(group);
+        });
+    });
+}
+
+function toggleAccordionGroup(group) {
+    const header = group.querySelector('.accordion-header');
+    const content = group.querySelector('.accordion-content');
+    if (!header || !content) return;
+
+    const isExpanded = header.getAttribute('aria-expanded') === 'true';
+    header.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
+    content.setAttribute('aria-hidden', isExpanded ? 'true' : 'false');
+
+    saveAccordionState();
+}
+
+function isGroupVisible(groupName, runtime) {
+    const group = document.querySelector(`.accordion-group[data-group="${groupName}"]`);
+    if (!group) return false;
+    const runtimeAttr = group.dataset.runtime;
+    if (runtimeAttr === 'both') return true;
+    if (runtimeAttr === runtime) return true;
+    return false;
+}
+
+function updateAccordionRuntimeVisibility(runtime) {
+    const accordion = document.getElementById('configAccordion');
+    if (!accordion) return;
+
+    accordion.querySelectorAll('.accordion-group').forEach(group => {
+        const groupName = group.dataset.group;
+        const isVisible = isGroupVisible(groupName, runtime);
+        if (isVisible) {
+            group.removeAttribute('data-hidden');
+        } else {
+            group.setAttribute('data-hidden', 'true');
+        }
+    });
+
+    updateOutlineForRuntime(runtime);
+    updatePresetsForRuntime(runtime);
+}
+
+function updateOutlineForRuntime(runtime) {
+    const panel = document.querySelector('.instance-panel.active');
+    if (!panel) return;
+
+    const groups = RUNTIME_GROUPS[runtime] || RUNTIME_GROUPS.llamacpp;
+    panel.querySelectorAll('.outline-nav .outline-item').forEach(item => {
+        const sectionId = item.getAttribute('data-section');
+        const groupName = sectionId.replace('section-', '');
+        if (groups.includes(groupName) || groupName === 'updates') {
+            item.style.display = '';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function updatePresetsForRuntime(runtime) {
+    const presetBar = document.getElementById('presetBar');
+    if (!presetBar) return;
+
+    const llamacppPresets = ['presetHighPerf', 'presetBalancedDual', 'presetLargeModel', 'presetCpuOffload', 'presetHighRamHybrid', 'presetQwen35', 'presetGemma4', 'presetAgenticCoding'];
+
+    presetBar.querySelectorAll('.preset-btn').forEach(btn => {
+        if (runtime === 'vllm') {
+            if (btn.id === 'presetAgenticCoding') {
+                btn.style.display = '';
+            } else {
+                btn.style.display = 'none';
+            }
+        } else {
+            btn.style.display = '';
+        }
+    });
+}
+
+function getCurrentRuntime() {
+    const instance = instanceTabs.find(t => t.id === activeInstanceId);
+    return instance?.runtime || 'llamacpp';
+}
+
+function loadAccordionState() {
+    try {
+        const raw = localStorage.getItem(ACCORDION_STATE_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return {};
+    }
+}
+
+function saveAccordionState() {
+    const state = {};
+    document.querySelectorAll('.accordion-group').forEach(group => {
+        const header = group.querySelector('.accordion-header');
+        if (header) {
+            state[group.dataset.group] = header.getAttribute('aria-expanded') === 'true';
+        }
+    });
+    localStorage.setItem(ACCORDION_STATE_KEY, JSON.stringify(state));
+}
 
 // Store WebSocket connection
 let socket = null;
@@ -167,82 +307,88 @@ let chartData = {
     vram: []
 };
 
-function initTooltips() {
-    const tooltips = document.querySelectorAll('.tooltip');
-    
-    tooltips.forEach(tooltip => {
-        const helpIcon = tooltip.parentElement;
-        
-        helpIcon.addEventListener('mouseenter', () => {
-            positionTooltipAbsolute(tooltip);
+let tooltipEl = null;
+let tooltipArrowEl = null;
+let currentTooltipTrigger = null;
+
+function createTooltipElement() {
+    tooltipEl = document.createElement('div');
+    tooltipEl.className = 'floating-tooltip';
+    const textSpan = document.createElement('span');
+    textSpan.className = 'floating-tooltip-text';
+    tooltipEl.appendChild(textSpan);
+    tooltipArrowEl = document.createElement('div');
+    tooltipArrowEl.className = 'floating-tooltip-arrow';
+    tooltipEl.appendChild(tooltipArrowEl);
+    document.body.appendChild(tooltipEl);
+}
+
+function updateTooltipPosition(triggerEl) {
+    computePosition(triggerEl, tooltipEl, {
+        placement: 'top',
+        middleware: [
+            offset(6),
+            flip(),
+            shift({ padding: 8 }),
+            arrow({ element: tooltipArrowEl })
+        ]
+    }).then(({ x, y, placement, middlewareData }) => {
+        Object.assign(tooltipEl.style, {
+            left: `${x}px`,
+            top: `${y}px`
+        });
+
+        const { x: arrowX, y: arrowY } = middlewareData.arrow;
+        const side = placement.split('-')[0];
+        const staticSide = {
+            top: 'bottom',
+            right: 'left',
+            bottom: 'top',
+            left: 'right'
+        }[side];
+
+        Object.assign(tooltipArrowEl.style, {
+            left: arrowX != null ? `${arrowX}px` : '',
+            top: arrowY != null ? `${arrowY}px` : '',
+            right: '',
+            bottom: '',
+            [staticSide]: '-3px'
         });
     });
 }
 
-function positionTooltipAbsolute(tooltip) {
-    // Reset positioning classes and styles
-    tooltip.classList.remove('tooltip-left', 'tooltip-right', 'tooltip-constrained');
-    tooltip.style.left = '';
-    tooltip.style.right = '';
-    tooltip.style.transform = '';
-    tooltip.style.maxWidth = '';
-    
-    // Get the main content container
-    const mainContent = tooltip.closest('.main-content');
-    const helpIcon = tooltip.parentElement;
-    
-    if (!mainContent || !helpIcon) return;
-    
-    // Force tooltip to be visible for measurement
-    tooltip.style.visibility = 'hidden';
-    tooltip.style.opacity = '1';
-    tooltip.style.display = 'block';
-    
-    // Get precise measurements
-    const mainContentRect = mainContent.getBoundingClientRect();
-    const iconRect = helpIcon.getBoundingClientRect();
-    const tooltipRect = tooltip.getBoundingClientRect();
-    
-    const padding = 15;
-    const availableWidth = mainContentRect.width - (padding * 2);
-    const iconCenterRelative = iconRect.left - mainContentRect.left + (iconRect.width / 2);
-    
-    // Calculate tooltip positioning
-    let leftPosition;
-    let maxWidth = Math.min(450, availableWidth);
-    
-    // If tooltip is wider than available space, constrain it
-    if (tooltipRect.width > availableWidth) {
-        tooltip.style.maxWidth = availableWidth + 'px';
-        leftPosition = padding;
-        tooltip.classList.add('tooltip-constrained');
-    } else {
-        // Try to center on icon
-        const idealLeft = iconCenterRelative - (tooltipRect.width / 2);
-        
-        if (idealLeft < padding) {
-            // Too far left, align to left edge
-            leftPosition = padding;
-        } else if (idealLeft + tooltipRect.width > mainContentRect.width - padding) {
-            // Too far right, align to right edge
-            leftPosition = mainContentRect.width - tooltipRect.width - padding;
-        } else {
-            // Center on icon
-            leftPosition = idealLeft;
-        }
+function showTooltip(triggerEl) {
+    const text = triggerEl.getAttribute('data-tooltip');
+    if (!text) return;
+
+    if (!tooltipEl) createTooltipElement();
+
+    const textSpan = tooltipEl.querySelector('.floating-tooltip-text');
+    textSpan.textContent = text;
+    tooltipEl.setAttribute('data-visible', 'true');
+    currentTooltipTrigger = triggerEl;
+
+    updateTooltipPosition(triggerEl);
+}
+
+function hideTooltip() {
+    if (tooltipEl) {
+        tooltipEl.setAttribute('data-visible', 'false');
     }
-    
-    // Apply positioning
-    tooltip.style.left = leftPosition + 'px';
-    tooltip.style.transform = 'translateX(0)';
-    
-    // Position arrow relative to icon
-    const arrowPosition = Math.max(20, Math.min(iconCenterRelative - leftPosition, tooltipRect.width - 20));
-    tooltip.style.setProperty('--arrow-left', arrowPosition + 'px');
-    
-    // Reset visibility
-    tooltip.style.visibility = '';
-    tooltip.style.opacity = '';
+    currentTooltipTrigger = null;
+}
+
+function initTooltips() {
+    const triggers = document.querySelectorAll('[data-tooltip]');
+
+    triggers.forEach(trigger => {
+        trigger.setAttribute('tabindex', '0');
+        trigger.setAttribute('role', 'button');
+        trigger.addEventListener('mouseenter', () => showTooltip(trigger));
+        trigger.addEventListener('mouseleave', hideTooltip);
+        trigger.addEventListener('focus', () => showTooltip(trigger));
+        trigger.addEventListener('blur', hideTooltip);
+    });
 }
 
 // Server path management functions
@@ -702,17 +848,89 @@ function createInstancePanel(instanceId) {
     const instanceContent = document.getElementById('instanceContent');
     if (!instanceContent) return;
 
+    const runtime = instanceTabs.find(t => t.id === instanceId)?.runtime || 'llamacpp';
+    const runtimeLabel = RUNTIME_LABELS[runtime] || runtime;
+
     const panel = document.createElement('div');
     panel.className = 'instance-panel';
     panel.setAttribute('data-instance-id', instanceId);
     panel.id = `instancePanel-${instanceId}`;
     panel.innerHTML = `
-        <div style="padding: 40px; text-align: center; color: var(--text-muted);">
-            <p>Instance configuration will be available here.</p>
-            <p style="font-size: 12px; margin-top: 8px;">Instance ID: ${instanceId}</p>
+        <div class="instance-header">
+            <div class="instance-header-left">
+                <button class="sidebar-toggle btn btn-ghost" title="Toggle sidebar">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                </button>
+                <span class="instance-header-dot status-idle"></span>
+                <span class="instance-header-runtime-badge">${runtimeLabel}</span>
+                <span class="instance-header-model">Untitled</span>
+            </div>
+            <div class="instance-header-right">
+                <button class="btn btn-primary instance-launch-btn">Launch</button>
+                <button class="btn btn-danger instance-stop-btn" disabled>Stop</button>
+                <button class="btn btn-secondary instance-open-server-btn" disabled title="Open server in browser">
+                    ${icon('globe', 14)} Open Server
+                </button>
+                <div class="model-status-inline">
+                    <div class="status-message">Not running</div>
+                    <div class="token-speed" style="display: none;">
+                        <span class="speed-label">Speed:</span>
+                        <span class="speed-value">0.0 t/s</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="instance-body">
+            <div class="outline-sidebar">
+                <nav class="outline-nav">
+                    <a class="outline-item active" data-section="section-model">Model</a>
+                    <a class="outline-item" data-section="section-performance">Performance</a>
+                    <a class="outline-item" data-section="section-memory">Memory</a>
+                    <a class="outline-item" data-section="section-concurrency">Concurrency</a>
+                    <a class="outline-item" data-section="section-networking">Networking</a>
+                    <a class="outline-item" data-section="section-speculative">Speculative</a>
+                    <a class="outline-item" data-section="section-kv-transfer">KV Transfer</a>
+                    <a class="outline-item" data-section="section-advanced">Advanced</a>
+                </nav>
+            </div>
+            <div class="instance-main">
+                <div class="config-form-area">
+                    <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+                        <p>Instance configuration will be available here.</p>
+                        <p style="font-size: 12px; margin-top: 8px;">Instance ID: ${instanceId}</p>
+                    </div>
+                </div>
+                <div class="metrics-panel-placeholder"></div>
+                <div class="log-stream-placeholder"></div>
+            </div>
         </div>
     `;
     instanceContent.appendChild(panel);
+
+    const sidebarToggle = panel.querySelector('.sidebar-toggle');
+    const sidebar = panel.querySelector('.outline-sidebar');
+    if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+        });
+    }
+
+    const outlineItems = panel.querySelectorAll('.outline-item');
+    const instanceMain = panel.querySelector('.instance-main');
+    outlineItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sectionId = item.getAttribute('data-section');
+            const section = panel.querySelector(`#${sectionId}`);
+            if (section) {
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+
+    if (instanceMain) {
+        setupScrollSpy(panel, instanceMain, outlineItems);
+    }
 }
 
 function removeInstanceTab(instanceId) {
@@ -748,6 +966,11 @@ function switchInstanceTab(instanceId) {
     document.querySelectorAll('.instance-tab').forEach(tab => {
         tab.classList.toggle('active', tab.getAttribute('data-instance-id') === instanceId);
     });
+
+    const runtime = getCurrentRuntime();
+    if (typeof updateAccordionRuntimeVisibility === 'function') {
+        updateAccordionRuntimeVisibility(runtime);
+    }
 }
 
 function renderInstanceTabs() {
@@ -799,6 +1022,18 @@ function updateInstanceStatus(instanceId, status) {
     if (statusDot) {
         statusDot.className = `instance-tab-status ${STATUS_COLORS[status] || 'status-idle'}`;
     }
+
+    const headerDot = document.querySelector(`#instancePanel-${instanceId} .instance-header-dot`);
+    if (headerDot) {
+        headerDot.className = `instance-header-dot ${STATUS_COLORS[status] || 'status-idle'}`;
+    }
+
+    if (instanceId === activeInstanceId) {
+        const mainDot = document.getElementById('instanceHeaderDot');
+        if (mainDot) {
+            mainDot.className = `instance-header-dot ${STATUS_COLORS[status] || 'status-idle'}`;
+        }
+    }
 }
 
 function updateInstanceModelName(instanceId, modelName) {
@@ -810,6 +1045,18 @@ function updateInstanceModelName(instanceId, modelName) {
     const nameEl = document.querySelector(`.instance-tab[data-instance-id="${instanceId}"] .instance-tab-name`);
     if (nameEl) {
         nameEl.textContent = tab.modelName;
+    }
+
+    const headerModel = document.querySelector(`#instancePanel-${instanceId} .instance-header-model`);
+    if (headerModel) {
+        headerModel.textContent = tab.modelName;
+    }
+
+    if (instanceId === activeInstanceId) {
+        const mainHeaderModel = document.getElementById('instanceHeaderModel');
+        if (mainHeaderModel) {
+            mainHeaderModel.textContent = tab.modelName;
+        }
     }
 }
 
@@ -1792,6 +2039,7 @@ async function stopServer() {
 
 // Configuration management functions
 function renderConfigList() {
+    if (!configList) return;
     configList.innerHTML = '';
     
     const configIds = Object.keys(configurations);
@@ -2309,10 +2557,12 @@ async function init() {
         refreshModelsBtn.addEventListener('click', refreshModelsHandler);
     }
 
-    // Set up event listeners for configuration management
-    addConfigBtn.addEventListener('click', addNewConfiguration);
-    saveConfigBtn.addEventListener('click', saveConfigurationUI);
-    cancelConfigBtn.addEventListener('click', cancelConfiguration);
+    if (saveConfigBtn) {
+        saveConfigBtn.addEventListener('click', saveConfigurationUI);
+    }
+    if (cancelConfigBtn) {
+        cancelConfigBtn.addEventListener('click', cancelConfiguration);
+    }
 
     // Set up event listeners for context token parameters
     ctkEnableCheckbox.addEventListener('change', updateContextTokenEnableState);
@@ -3198,62 +3448,89 @@ function initUpdater() {
 // END LLAMA.CPP AUTO-UPDATER UI MODULE
 // ============================================
 
-// Start the application when DOM is loaded
-// Force absolute positioning as nuclear fallback option
-function forceLayoutPositioning() {
-    console.log('Applying JavaScript positioning fallback...');
-    
-    const mainLayout = document.querySelector('.main-layout');
-    const configPanel = document.querySelector('.config-panel');
-    const mainContent = document.querySelector('.main-content');
-    const systemPanel = document.querySelector('.system-panel');
-    
-    if (mainLayout) {
-        mainLayout.style.position = 'relative';
-        mainLayout.style.display = 'block';
-        mainLayout.style.width = '100%';
-        mainLayout.style.height = '100%';
-        mainLayout.style.minWidth = '900px';
-        mainLayout.style.overflow = 'visible';
-    }
-    
-    if (configPanel) {
-        configPanel.style.position = 'absolute';
-        configPanel.style.left = '10px';
-        configPanel.style.top = '0';
-        configPanel.style.bottom = '0';
-        configPanel.style.width = '270px';
-        configPanel.style.zIndex = '10';
-    }
-    
-    if (mainContent) {
-        mainContent.style.position = 'absolute';
-        mainContent.style.left = '300px';
-        mainContent.style.right = '330px';
-        mainContent.style.top = '0';
-        mainContent.style.bottom = '0';
-        mainContent.style.zIndex = '10';
-    }
-    
-    if (systemPanel) {
-        systemPanel.style.position = 'absolute';
-        systemPanel.style.right = '10px';
-        systemPanel.style.top = '0';
-        systemPanel.style.bottom = '0';
-        systemPanel.style.width = '310px';
-        systemPanel.style.zIndex = '10';
-        console.log('System panel positioned at right: 10px');
-    }
+function initSidebarToggle() {
+    document.querySelectorAll('.instance-panel').forEach(panel => {
+        const toggle = panel.querySelector('.sidebar-toggle');
+        const sidebar = panel.querySelector('.outline-sidebar');
+        if (toggle && sidebar && !toggle._bound) {
+            toggle._bound = true;
+            toggle.addEventListener('click', () => {
+                sidebar.classList.toggle('collapsed');
+            });
+        }
+    });
+}
+
+function setupScrollSpy(panel, instanceMain, outlineItems) {
+    const sections = [];
+    outlineItems.forEach(item => {
+        const sectionId = item.getAttribute('data-section');
+        const section = panel.querySelector(`#${sectionId}`);
+        if (section) {
+            sections.push({ id: sectionId, el: section, navItem: item });
+        }
+    });
+
+    if (sections.length === 0) return;
+
+    let scrollSpyRaf = null;
+    instanceMain.addEventListener('scroll', () => {
+        if (scrollSpyRaf) return;
+        scrollSpyRaf = requestAnimationFrame(() => {
+            scrollSpyRaf = null;
+            let activeSection = sections[0];
+
+            for (const section of sections) {
+                const rect = section.el.getBoundingClientRect();
+                const mainRect = instanceMain.getBoundingClientRect();
+                const relativeTop = rect.top - mainRect.top;
+                if (relativeTop <= 100) {
+                    activeSection = section;
+                } else {
+                    break;
+                }
+            }
+
+            if (activeSection) {
+                outlineItems.forEach(item => item.classList.remove('active'));
+                activeSection.navItem.classList.add('active');
+            }
+        });
+    });
+}
+
+function initScrollSpy() {
+    document.querySelectorAll('.instance-panel').forEach(panel => {
+        const instanceMain = panel.querySelector('.instance-main');
+        const outlineItems = panel.querySelectorAll('.outline-nav .outline-item');
+        if (!instanceMain || outlineItems.length === 0) return;
+
+        outlineItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const sectionId = item.getAttribute('data-section');
+                const section = panel.querySelector(`#${sectionId}`);
+                if (section) {
+                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        if (!panel._scrollSpyInit) {
+            panel._scrollSpyInit = true;
+            setupScrollSpy(panel, instanceMain, outlineItems);
+        }
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
     init();
-    initCharts(); // Initialize chart contexts
-    startMetricUpdates(); // Start periodic metric updates
-    
-    // Apply positioning fallback after a short delay to ensure DOM is ready
-    setTimeout(forceLayoutPositioning, 100);
-    
-    // Add resize listener for charts
+    initCharts();
+    startMetricUpdates();
+    initSidebarToggle();
+    initScrollSpy();
+    initAccordion();
+    updateAccordionRuntimeVisibility(getCurrentRuntime());
+
     window.addEventListener('resize', handleResize);
 });
