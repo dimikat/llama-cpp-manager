@@ -95,6 +95,7 @@ const configFormTitle = document.getElementById('configFormTitle');
 const configNameInput = document.getElementById('configName');
 const saveConfigBtn = document.getElementById('saveConfigBtn');
 const cancelConfigBtn = document.getElementById('cancelConfigBtn');
+const configElementsExist = !!configFormContainer;
 
 const launchBtn = document.getElementById('launchBtn');
 const stopBtn = document.getElementById('stopBtn');
@@ -2110,9 +2111,9 @@ function selectConfiguration(configId) {
 
 // Edit a configuration
 function editConfiguration(configId) {
+    if (!configElementsExist) return;
     const config = configurations[configId];
     if (config) {
-        // Show the form with the configuration name
         configFormTitle.textContent = 'Edit Configuration';
         configNameInput.value = config.name || '';
         configFormContainer.showModal();
@@ -2122,6 +2123,7 @@ function editConfiguration(configId) {
 
 // Save a new or edited configuration (UI function)
 async function saveConfigurationUI() {
+    if (!configElementsExist) return;
     const configName = configNameInput.value.trim();
     
     if (!configName) {
@@ -2236,6 +2238,7 @@ async function saveConfigurationUI() {
 
 // Cancel configuration editing
 function cancelConfiguration() {
+    if (!configElementsExist) return;
     configFormContainer.close();
     configNameInput.value = '';
     configFormTitle.textContent = 'Create New Configuration';
@@ -2289,6 +2292,7 @@ async function deleteConfigurationUI(configId) {
 
 // Add a new configuration
 function addNewConfiguration() {
+    if (!configElementsExist) return;
     configFormTitle.textContent = 'Create New Configuration';
     configNameInput.value = '';
     configFormContainer.showModal();

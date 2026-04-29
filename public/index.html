@@ -23,728 +23,51 @@
         <div class="app-title">
             <h1 style="margin: 0; display: inline;">LLaMA CPP Manager</h1>
         </div>
-        
-        <div class="main-layout" style="position: relative !important; display: block !important; width: 100% !important; height: 100% !important; min-width: 900px !important; overflow: visible !important;">
-            <!-- Configuration Panel (Left) -->
-            <div class="config-panel" style="position: absolute !important; left: 10px !important; top: 0 !important; bottom: 0 !important; width: 270px !important; z-index: 10 !important;">
-                <div class="config-header">
-                    <h2>Configurations</h2>
-                    <button id="addConfigBtn" class="btn btn-primary">+ Add</button>
+
+        <div class="main-layout">
+            <div class="instance-tab-bar">
+                <div class="instance-tabs-scroll" id="instanceTabsScroll">
+                    <div class="instance-tabs" id="instanceTabs"></div>
                 </div>
-                <dialog id="configFormContainer" class="config-form-container">
-                    <h3 id="configFormTitle">Create New Configuration</h3>
-                    <div class="form-group">
-                        <label for="configName">Configuration Name:</label>
-                        <input type="text" id="configName" class="form-control" placeholder="Enter configuration name">
-                    </div>
-                    <div class="form-actions">
-                        <button id="saveConfigBtn" class="btn btn-primary">Save</button>
-                        <button id="cancelConfigBtn" class="btn btn-secondary">Cancel</button>
-                    </div>
-                </dialog>
-                <div id="configList" class="config-list"></div>
+                <button class="instance-tab-new" id="newInstanceBtn" title="Create new instance">
+                    <span class="icon">+</span>
+                    <span class="instance-tab-new-label">New Instance</span>
+                </button>
             </div>
 
-            <!-- Main Content (Middle) -->
-            <div class="main-content" style="position: absolute !important; left: 300px !important; right: 330px !important; top: 0 !important; bottom: 0 !important; z-index: 10 !important;">
-                <div class="input-section">
-                    <!-- Instance Tab Bar -->
-                    <div class="instance-tab-bar">
-                        <div class="instance-tabs-scroll" id="instanceTabsScroll">
-                            <div class="instance-tabs" id="instanceTabs"></div>
-                        </div>
-                        <button class="instance-tab-new" id="newInstanceBtn" title="Create new instance">
-                            <span class="icon">+</span>
-                            <span class="instance-tab-new-label">New Instance</span>
+            <div class="runtime-picker-overlay" id="runtimePickerOverlay">
+                <div class="runtime-picker-modal">
+                    <h3 class="runtime-picker-title">Start a new inference instance</h3>
+                    <div class="runtime-picker-cards">
+                        <button class="runtime-picker-card" data-runtime="llamacpp">
+                            <span class="runtime-picker-card-name">llama.cpp</span>
+                            <span class="runtime-picker-card-desc">Native llama.cpp server. Recommended for GGUF models and custom quantization.</span>
+                        </button>
+                        <button class="runtime-picker-card" data-runtime="vllm">
+                            <span class="runtime-picker-card-name">vLLM</span>
+                            <span class="runtime-picker-card-desc">Docker-based vLLM server. Recommended for dense models and agentic workloads.</span>
                         </button>
                     </div>
+                </div>
+            </div>
 
-                    <!-- Runtime Picker Modal -->
-                    <div class="runtime-picker-overlay" id="runtimePickerOverlay">
-                        <div class="runtime-picker-modal">
-                            <h3 class="runtime-picker-title">Start a new inference instance</h3>
-                            <div class="runtime-picker-cards">
-                                <button class="runtime-picker-card" data-runtime="llamacpp">
-                                    <span class="runtime-picker-card-name">llama.cpp</span>
-                                    <span class="runtime-picker-card-desc">Native llama.cpp server. Recommended for GGUF models and custom quantization.</span>
-                                </button>
-                                <button class="runtime-picker-card" data-runtime="vllm">
-                                    <span class="runtime-picker-card-name">vLLM</span>
-                                    <span class="runtime-picker-card-desc">Docker-based vLLM server. Recommended for dense models and agentic workloads.</span>
-                                </button>
-                            </div>
+            <div class="instance-content" id="instanceContent">
+                <div class="instance-panel active" data-instance-id="default-llamacpp" id="instancePanel-default-llamacpp">
+                    <div class="instance-header">
+                        <div class="instance-header-left">
+                            <button class="sidebar-toggle btn btn-ghost" title="Toggle sidebar">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                            </button>
+                            <span class="instance-header-dot status-idle"></span>
+                            <span class="instance-header-runtime-badge">llama.cpp</span>
+                            <span class="instance-header-model">Untitled</span>
                         </div>
-                    </div>
-
-                    <!-- Tab Content Panels -->
-                    <div class="instance-content" id="instanceContent">
-                        <!-- Instance panels are dynamically managed -->
-                        <div class="instance-panel active" data-instance-id="default-llamacpp" id="instancePanel-default-llamacpp">
-                        <div class="config-form-area">
-                            <div id="configAccordion" class="accordion">
-
-                                <div class="accordion-group" data-group="model" data-runtime="both" id="section-model">
-                                    <button class="accordion-header" aria-expanded="true" type="button">
-                                        <span class="accordion-header-title">Model</span>
-                                        <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                                    </button>
-                                    <div class="accordion-content" aria-hidden="false">
-                                        <div class="accordion-content-inner">
-                                            <div class="form-group">
-                                                <label for="serverPath">LLaMA Server Path:
-                                                    <span class="help-icon" data-tooltip="Path to your llama-server.exe or llama-server executable. This is the main llama.cpp server binary that will run your models."></span>
-                                                </label>
-                                                <input type="text" id="serverPath" class="form-control" placeholder="Enter path to llama-server.exe">
-                                            </div>
-
-                                            <h4 class="config-subsection-title">Models Directory</h4>
-                                            <div class="form-group">
-                                                <label for="modelsSource">Source:
-                                                    <span class="help-icon" data-tooltip="Select where to find your GGUF models. Auto-detect options will read the configured path from each tool. Use Custom to specify your own folder."></span>
-                                                </label>
-                                                <select id="modelsSource" class="form-control">
-                                                    <option value="lmstudio">LM Studio (auto-detect)</option>
-                                                    <option value="ollama">Ollama (auto-detect)</option>
-                                                    <option value="gpt4all">GPT4All (auto-detect)</option>
-                                                    <option value="jan">Jan.ai (auto-detect)</option>
-                                                    <option value="custom">Custom Path</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group" id="customPathGroup" style="display: none;">
-                                                <label for="customModelsPath">Custom Path:
-                                                    <span class="help-icon" data-tooltip="Enter the full path to your models directory containing GGUF files."></span>
-                                                </label>
-                                                <input type="text" id="customModelsPath" class="form-control" placeholder="Enter path to models folder">
-                                            </div>
-                                            <div class="form-group">
-                                                <div class="models-path-info">
-                                                    <span class="path-label">Active path:</span>
-                                                    <span id="activeModelsPath" class="path-value">Detecting...</span>
-                                                </div>
-                                                <button type="button" id="refreshModelsBtn" class="btn btn-secondary btn-sm">Refresh Models</button>
-                                            </div>
-
-                                            <h4 class="config-subsection-title">Model Selection</h4>
-                                            <div class="form-group">
-                                                <label for="modelPath">Model (-m):
-                                                    <span class="help-icon" data-tooltip="Select the GGUF model file to load. Models are automatically detected from the models directory above."></span>
-                                                </label>
-                                                <select id="modelPath" class="form-control">
-                                                    <option value="">-- Select a Model --</option>
-                                                </select>
-                                            </div>
-
-                                            <h4 class="config-subsection-title">GPU Configuration</h4>
-                                            <div class="form-group">
-                                                <label for="ngl">GPU Layers (-ngl):
-                                                    <span class="help-icon" data-tooltip="Number of model layers to offload to GPU. Use 99 to offload all layers. For large models (>50GB) on 24GB cards, try 30-50 layers to avoid VRAM overflow."></span>
-                                                </label>
-                                                <input type="number" id="ngl" class="form-control" min="0" value="99">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="contextSize">Context Size (-c):
-                                                    <span class="help-icon" data-tooltip="Maximum tokens in conversation memory. 32K for most uses, 128K for large documents. Higher values use more VRAM."></span>
-                                                </label>
-                                                <input type="number" id="contextSize" class="form-control" min="1" value="16384">
-                                            </div>
-
-                                            <h4 class="config-subsection-title">Preset Configurations</h4>
-                                            <div class="preset-buttons">
-                                                <button type="button" id="presetHighPerf" class="btn btn-outline-primary">High Performance Single GPU</button>
-                                                <button type="button" id="presetBalancedDual" class="btn btn-outline-primary">Balanced Dual GPU</button>
-                                                <button type="button" id="presetLargeModel" class="btn btn-outline-primary">Large Model Dual GPU</button>
-                                                <button type="button" id="presetCpuOffload" class="btn btn-outline-primary">CPU Offload Hybrid</button>
-                                                <button type="button" id="presetHighRamHybrid" class="btn btn-outline-success">High RAM Hybrid (128GB+)</button>
-                                                <button type="button" id="presetQwen35" class="btn btn-outline-info">Qwen 3.5</button>
-                                                <button type="button" id="presetGemma4" class="btn btn-outline-info">Gemma 4</button>
-                                                <button type="button" id="presetAgenticCoding" class="btn btn-outline-warning">Agentic Coding</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="accordion-group" data-group="performance" data-runtime="both" id="section-performance">
-                                    <button class="accordion-header" aria-expanded="false" type="button">
-                                        <span class="accordion-header-title">Performance</span>
-                                        <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                                    </button>
-                                    <div class="accordion-content" aria-hidden="true">
-                                        <div class="accordion-content-inner">
-                                            <div class="form-group">
-                                                <label for="threads">Threads (-t):
-                                                    <span class="help-icon" data-tooltip="Number of CPU threads for processing. Usually set to your CPU core count. Too many threads can reduce performance."></span>
-                                                </label>
-                                                <input type="number" id="threads" class="form-control" min="1" value="12">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="batchSize">Batch Size (--batch-size, -b):
-                                                    <span class="help-icon" data-tooltip="Number of tokens processed simultaneously. Higher values (2048+) improve throughput but use more VRAM. Reduce if you get OOM errors."></span>
-                                                </label>
-                                                <input type="number" id="batchSize" class="form-control" min="1" value="2048">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="ubatchSize">Micro Batch Size (--ubatch-size, -ub):
-                                                    <span class="help-icon" data-tooltip="Size of batches processed internally. Usually 1/4 to 1/2 of batch size. Lower values use less VRAM but may be slower."></span>
-                                                </label>
-                                                <input type="number" id="ubatchSize" class="form-control" min="1" value="512">
-                                            </div>
-                                            <div class="inline-checkboxes">
-                                                <div class="form-group">
-                                                    <label for="contBatching">Continuous Batching (--cont-batching):
-                                                        <span class="help-icon" data-tooltip="Enables processing multiple requests simultaneously. Improves throughput for server workloads but uses more VRAM."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="contBatching" class="form-control checkbox">
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="fastAttention">Fast Attention (--fa):
-                                                        <span class="help-icon" data-tooltip="FlashAttention optimization for faster inference. Can provide significant speedup on compatible hardware (modern GPUs)."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="fastAttention" class="form-control checkbox">
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="noContextShift">No Context Shift (--no-context-shift):
-                                                        <span class="help-icon" data-tooltip="Disables automatic context rotation when context is full. Default: off (context rotates gracefully). Enable if you need strict context boundaries -- generation stops at the limit instead of silently dropping old tokens."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="noContextShift" class="form-control checkbox">
-                                                </div>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="numa">NUMA Optimization (--numa):
-                                                    <span class="help-icon" data-tooltip="Memory optimization for multi-socket systems. 'Distribute' spreads across NUMA nodes, 'Isolate' keeps to one node. Leave None for single-socket systems."></span>
-                                                </label>
-                                                <select id="numa" class="form-control">
-                                                    <option value="">None</option>
-                                                    <option value="distribute">Distribute</option>
-                                                    <option value="isolate">Isolate</option>
-                                                    <option value="numactl">Numactl</option>
-                                                </select>
-                                            </div>
-
-                                            <h4 class="config-subsection-title">Multi-GPU Settings</h4>
-                                            <div class="warning-banner" id="multiGpuWarning" style="display: none;">
-                                                <strong>Performance Note:</strong> Tensor splitting in llama.cpp may reduce performance. Consider vLLM or ExLlamaV2 for optimal multi-GPU utilization.
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="tensorSplit">Tensor Split (--tensor-split):
-                                                    <span class="help-icon" data-tooltip="Comma-separated ratios for GPU memory distribution. Example: 0.6,0.4 gives 60% to GPU 0, 40% to GPU 1. For dual 3090s, try 0.5,0.5 first."></span>
-                                                </label>
-                                                <input type="text" id="tensorSplit" class="form-control" placeholder="e.g., 0.5,0.5 for equal split">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="mainGpu">Main GPU (--main-gpu):
-                                                    <span class="help-icon" data-tooltip="Primary GPU for processing when using multiple GPUs. Usually GPU 0. This GPU handles coordination and the first layers."></span>
-                                                </label>
-                                                <select id="mainGpu" class="form-control">
-                                                    <option value="0">GPU 0</option>
-                                                    <option value="1">GPU 1</option>
-                                                    <option value="2">GPU 2</option>
-                                                    <option value="3">GPU 3</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="splitMode">Split Mode (--split-mode):
-                                                    <span class="help-icon" data-tooltip="How to split model across GPUs. 'Layer' works best for most models. 'Row' for very large models that don't fit in layers."></span>
-                                                </label>
-                                                <select id="splitMode" class="form-control">
-                                                    <option value="none">None (default)</option>
-                                                    <option value="layer">Layer</option>
-                                                    <option value="row">Row</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="accordion-group" data-group="memory" data-runtime="both" id="section-memory">
-                                    <button class="accordion-header" aria-expanded="false" type="button">
-                                        <span class="accordion-header-title">Memory</span>
-                                        <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                                    </button>
-                                    <div class="accordion-content" aria-hidden="true">
-                                        <div class="accordion-content-inner">
-                                            <h4 class="config-subsection-title">Memory Management</h4>
-                                            <div class="inline-checkboxes">
-                                                <div class="form-group">
-                                                    <label for="mlock">Memory Lock (--mlock):
-                                                        <span class="help-icon" data-tooltip="Prevents model from being swapped to disk. Essential for hybrid GPU/CPU loading with fast DDR5 RAM (64GB+). Keeps model layers consistently in RAM for optimal performance. Recommended for high-RAM systems running large models."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="mlock" class="form-control checkbox">
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="noMmap">No Memory Mapping (--no-mmap):
-                                                        <span class="help-icon" data-tooltip="Disables memory mapping for model loading. Can help with some systems but uses more RAM. Try if you get loading errors."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="noMmap" class="form-control checkbox">
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="swaFull">SWA Full (--swa-full):
-                                                        <span class="help-icon" data-tooltip="Sliding Window Attention optimization. Can improve performance for models with sliding window attention support."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="swaFull" class="form-control checkbox">
-                                                </div>
-                                            </div>
-
-                                            <h4 class="config-subsection-title">Context Token Parameters</h4>
-                                            <div class="inline-checkboxes">
-                                                <div class="form-group">
-                                                    <label for="ctkEnable">Enable -ctk/-ctv:
-                                                        <span class="help-icon" data-tooltip="Enables custom quantization for context token key/value caches. Advanced feature for fine-tuning memory usage vs quality."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="ctkEnable" class="form-control checkbox">
-                                                </div>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="contextTokenKey">Context Token Key (-ctk):
-                                                    <span class="help-icon" data-tooltip="Quantization type for context token keys. Only active when CTK/CTV is enabled. f16 provides good balance of quality and performance."></span>
-                                                </label>
-                                                <select id="contextTokenKey" class="form-control" disabled>
-                                                    <option value="f32">f32</option>
-                                                    <option value="f16" selected>f16</option>
-                                                    <option value="bf16">bf16</option>
-                                                    <option value="q8_0">q8_0</option>
-                                                    <option value="q4_0">q4_0</option>
-                                                    <option value="q4_1">q4_1</option>
-                                                    <option value="iq4_nl">iq4_nl</option>
-                                                    <option value="q5_0">q5_0</option>
-                                                    <option value="q5_1">q5_1</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="contextTokenValue">Context Token Value (-ctv):
-                                                    <span class="help-icon" data-tooltip="Quantization type for context token values. Only active when CTK/CTV is enabled. Should usually match the CTK setting."></span>
-                                                </label>
-                                                <select id="contextTokenValue" class="form-control" disabled>
-                                                    <option value="f32">f32</option>
-                                                    <option value="f16" selected>f16</option>
-                                                    <option value="bf16">bf16</option>
-                                                    <option value="q8_0">q8_0</option>
-                                                    <option value="q4_0">q4_0</option>
-                                                    <option value="q4_1">q4_1</option>
-                                                    <option value="iq4_nl">iq4_nl</option>
-                                                    <option value="q5_0">q5_0</option>
-                                                    <option value="q5_1">q5_1</option>
-                                                </select>
-                                            </div>
-
-                                            <h4 class="config-subsection-title">Cache Types</h4>
-                                            <div class="form-group">
-                                                <label for="cacheTypeK">Cache Type K (--cache-type-k):
-                                                    <span class="help-icon" data-tooltip="Quantization type for KV cache keys. Affects memory usage vs quality. q4_0 saves significant VRAM with minimal quality loss."></span>
-                                                </label>
-                                                <select id="cacheTypeK" class="form-control">
-                                                    <option value="f32">f32</option>
-                                                    <option value="f16">f16</option>
-                                                    <option value="bf16">bf16</option>
-                                                    <option value="q8_0">q8_0</option>
-                                                    <option value="q4_0" selected>q4_0</option>
-                                                    <option value="q4_1">q4_1</option>
-                                                    <option value="iq4_nl">iq4_nl</option>
-                                                    <option value="q5_0">q5_0</option>
-                                                    <option value="q5_1">q5_1</option>
-                                                    <option value="turbo3">turbo3 (TurboQuant 3-bit)</option>
-                                                    <option value="turbo4">turbo4 (TurboQuant 4-bit)</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="cacheTypeV">Cache Type V (--cache-type-v):
-                                                    <span class="help-icon" data-tooltip="Quantization type for KV cache values. Should usually match Cache Type K setting. q4_0 provides good VRAM savings."></span>
-                                                </label>
-                                                <select id="cacheTypeV" class="form-control">
-                                                    <option value="f32">f32</option>
-                                                    <option value="f16">f16</option>
-                                                    <option value="bf16">bf16</option>
-                                                    <option value="q8_0">q8_0</option>
-                                                    <option value="q4_0" selected>q4_0</option>
-                                                    <option value="q4_1">q4_1</option>
-                                                    <option value="iq4_nl">iq4_nl</option>
-                                                    <option value="q5_0">q5_0</option>
-                                                    <option value="q5_1">q5_1</option>
-                                                    <option value="turbo3">turbo3 (TurboQuant 3-bit)</option>
-                                                    <option value="turbo4">turbo4 (TurboQuant 4-bit)</option>
-                                                </select>
-                                            </div>
-                                            <div class="inline-checkboxes">
-                                                <div class="form-group">
-                                                    <label for="kvOffload">KV Cache in VRAM (-nkvo):
-                                                        <span class="help-icon" data-tooltip="Keep the entire KV cache in GPU VRAM instead of allowing spillover to system RAM. Faster inference but uses more VRAM. Recommended for low-latency agentic workloads."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="kvOffload" class="form-control checkbox">
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="accordion-group" data-group="concurrency" data-runtime="both" id="section-concurrency">
-                                    <button class="accordion-header" aria-expanded="false" type="button">
-                                        <span class="accordion-header-title">Concurrency</span>
-                                        <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                                    </button>
-                                    <div class="accordion-content" aria-hidden="true">
-                                        <div class="accordion-content-inner">
-                                            <div class="form-group">
-                                                <label for="nPredict">Max Predict Tokens (--n-predict, -n):
-                                                    <span class="help-icon" data-tooltip="Maximum tokens to generate per request. -1 = unlimited. Agents typically use 2048-4096 to prevent runaway generation. Leave blank for server default (unlimited)."></span>
-                                                </label>
-                                                <input type="number" id="nPredict" class="form-control" min="-1" placeholder="unlimited (default)">
-                                            </div>
-                                            <h4 class="config-subsection-title">Agentic / Multi-Slot Settings</h4>
-                                            <div class="form-group">
-                                                <label for="nParallel">Parallel Slots (--n-parallel, -np):
-                                                    <span class="help-icon" data-tooltip="Number of concurrent inference slots. Agents need 4-8 for parallel tool calling. Total context is divided across slots (e.g. 64K / 4 slots = 16K each). Requires Continuous Batching enabled."></span>
-                                                </label>
-                                                <input type="number" id="nParallel" class="form-control" min="1" placeholder="1 (default)">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="slotPromptSimilarity">Slot Prompt Similarity (-sps):
-                                                    <span class="help-icon" data-tooltip="Minimum prompt overlap (0-1) to reuse a slot's KV cache. Higher = more aggressive reuse. 0.5 default; 0.7-0.8 recommended for agents that send the same system prompt each turn."></span>
-                                                </label>
-                                                <input type="number" id="slotPromptSimilarity" class="form-control" min="0" max="1" step="0.05" placeholder="0.5 (default)">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="slotSavePath">Slot Save Path (--slot-save-path):
-                                                    <span class="help-icon" data-tooltip="Directory to save/restore slot KV cache between sessions. Enables persistent context across server restarts. Leave blank to disable."></span>
-                                                </label>
-                                                <input type="text" id="slotSavePath" class="form-control" placeholder="e.g. ./llm_cache">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="accordion-group" data-group="speculative" data-runtime="both" id="section-speculative">
-                                    <button class="accordion-header" aria-expanded="false" type="button">
-                                        <span class="accordion-header-title">Speculative</span>
-                                        <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                                    </button>
-                                    <div class="accordion-content" aria-hidden="true">
-                                        <div class="accordion-content-inner">
-                                            <div class="info-banner" id="draftModelInfo">
-                                                <strong>Performance Boost:</strong> Use a smaller draft model to predict tokens, validated by the main model. Can provide 2-3x speed improvement for compatible model pairs.
-                                            </div>
-                                            <div class="inline-checkboxes">
-                                                <div class="form-group">
-                                                    <label for="draftModelEnable">Enable Speculative Decoding:
-                                                        <span class="help-icon" data-tooltip="Uses a smaller draft model to predict tokens, validated by main model. Can provide 2-3x speed improvement with compatible model pairs."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="draftModelEnable" class="form-control checkbox">
-                                                </div>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="draftModelPath">Draft Model (--model-draft):</label>
-                                                <select id="draftModelPath" class="form-control" disabled>
-                                                    <option value="">-- Select a Draft Model --</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="draftGpuLayers">Draft GPU Layers (--n-gpu-layers-draft):
-                                                    <span class="help-icon" data-tooltip="Number of layers to run on GPU for draft model. Usually all layers for best performance. Should be less than or equal to main model GPU layers."></span>
-                                                </label>
-                                                <input type="number" id="draftGpuLayers" class="form-control" min="0" value="40" disabled>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="draftContextSize">Draft Context Size (--ctx-size-draft):
-                                                    <span class="help-icon" data-tooltip="Context size for draft model. Should usually match main model context size for best compatibility."></span>
-                                                </label>
-                                                <input type="number" id="draftContextSize" class="form-control" min="512" value="8192" disabled>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="draftMaxTokens">Draft Max Tokens (--draft):
-                                                    <span class="help-icon" data-tooltip="Maximum number of tokens draft model predicts ahead. Higher values improve speed but use more VRAM. 16-32 typical range."></span>
-                                                </label>
-                                                <input type="number" id="draftMaxTokens" class="form-control" min="1" value="16" disabled>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="draftMinTokens">Draft Min Tokens (--draft-min):
-                                                    <span class="help-icon" data-tooltip="Minimum number of draft tokens to keep. Usually 1. Lower values can improve quality at the cost of speed."></span>
-                                                </label>
-                                                <input type="number" id="draftMinTokens" class="form-control" min="1" value="1" disabled>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="draftPMin">Draft P Min (--draft-p-min):
-                                                    <span class="help-icon" data-tooltip="Minimum probability threshold for draft token acceptance. 0.0-1.0 range. Higher values = more conservative, lower = more aggressive."></span>
-                                                </label>
-                                                <input type="number" id="draftPMin" class="form-control" step="0.01" min="0" max="1" value="0.05" disabled>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="accordion-group" data-group="kv-transfer" data-runtime="vllm" id="section-kv-transfer">
-                                    <button class="accordion-header" aria-expanded="false" type="button">
-                                        <span class="accordion-header-title">KV Transfer</span>
-                                        <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                                    </button>
-                                    <div class="accordion-content" aria-hidden="true">
-                                        <div class="accordion-content-inner">
-                                            <div class="info-banner">
-                                                <strong>KV Transfer:</strong> Configure KV cache offloading and transfer between instances. These settings are only available for vLLM instances.
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="accordion-group" data-group="networking" data-runtime="both" id="section-networking">
-                                    <button class="accordion-header" aria-expanded="false" type="button">
-                                        <span class="accordion-header-title">Networking</span>
-                                        <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                                    </button>
-                                    <div class="accordion-content" aria-hidden="true">
-                                        <div class="accordion-content-inner">
-                                            <div class="form-group">
-                                                <label for="serverHost">Host (--host):
-                                                    <span class="help-icon" data-tooltip="IP address to bind server to. 127.0.0.1 for local only, 0.0.0.0 to allow external connections. Be careful with external access!"></span>
-                                                </label>
-                                                <input type="text" id="serverHost" class="form-control" value="127.0.0.1" placeholder="IP address to bind to">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="serverPort">Port (--port):
-                                                    <span class="help-icon" data-tooltip="Network port for the API server. Default 8080. Make sure this port isn't already in use by another application."></span>
-                                                </label>
-                                                <input type="number" id="serverPort" class="form-control" min="1" max="65535" value="8080" placeholder="Port number">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="apiKey">API Key (--api-key):
-                                                    <span class="help-icon" data-tooltip="Optional authentication key for API requests. Leave empty for no authentication. Required for production deployments."></span>
-                                                </label>
-                                                <input type="password" id="apiKey" class="form-control" placeholder="Optional authentication key">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="readTimeout">Read Timeout (--timeout-read):
-                                                    <span class="help-icon" data-tooltip="Server read timeout in seconds. How long server waits for client requests. Default is 600 seconds (10 minutes)."></span>
-                                                </label>
-                                                <input type="number" id="readTimeout" class="form-control" min="1" value="600" placeholder="Read timeout in seconds">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="writeTimeout">Write Timeout (--timeout-write):
-                                                    <span class="help-icon" data-tooltip="Server write timeout in seconds. How long server waits to send responses. Default is 600 seconds (10 minutes)."></span>
-                                                </label>
-                                                <input type="number" id="writeTimeout" class="form-control" min="1" value="600" placeholder="Write timeout in seconds">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="accordion-group" data-group="advanced" data-runtime="both" id="section-advanced">
-                                    <button class="accordion-header" aria-expanded="false" type="button">
-                                        <span class="accordion-header-title">Advanced</span>
-                                        <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                                    </button>
-                                    <div class="accordion-content" aria-hidden="true">
-                                        <div class="accordion-content-inner">
-                                            <h4 class="config-subsection-title">Sampling Parameters</h4>
-                                            <div class="form-group">
-                                                <label for="temp">Temperature (--temp):
-                                                    <span class="help-icon" data-tooltip="Controls randomness in output. 0.1 = very focused, 0.7 = balanced, 1.2+ = very creative. Most models work best with 0.6-0.8."></span>
-                                                </label>
-                                                <input type="number" id="temp" class="form-control" step="0.01" min="0" value="0.7">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="topK">Top-K (--top-k):
-                                                    <span class="help-icon" data-tooltip="Limits vocabulary to top K most probable tokens. 20-40 is typical. Higher values = more variety, lower = more focused."></span>
-                                                </label>
-                                                <input type="number" id="topK" class="form-control" min="0" value="20">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="topP">Top-P (--top-p):
-                                                    <span class="help-icon" data-tooltip="Cumulative probability threshold. 0.9-0.95 typical. Alternative to Top-K. Set to 0.00 to disable nucleus sampling."></span>
-                                                </label>
-                                                <input type="number" id="topP" class="form-control" step="0.01" min="0" max="1" value="0.00">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="repeatPenalty">Repeat Penalty (--repeat-penalty):
-                                                    <span class="help-icon" data-tooltip="Penalizes repeated words/phrases. 1.0 = no penalty, 1.05-1.15 typical. Higher values reduce repetition but may affect coherence."></span>
-                                                </label>
-                                                <input type="number" id="repeatPenalty" class="form-control" step="0.01" min="0" value="1.05">
-                                            </div>
-
-                                            <h4 class="config-subsection-title">Mixture of Experts (MoE)</h4>
-                                            <div class="form-group">
-                                                <label for="nCpuMoe">CPU MoE Layers (--n-cpu-moe):
-                                                    <span class="help-icon" data-tooltip="Number of Mixture of Experts layers to run on CPU. For MoE models like Mixtral. Reduces VRAM usage at the cost of speed."></span>
-                                                </label>
-                                                <input type="number" id="nCpuMoe" class="form-control" min="0" value="8">
-                                            </div>
-                                            <div class="inline-checkboxes">
-                                                <div class="form-group">
-                                                    <label for="cpuMoe">CPU MoE (--cpu-moe):
-                                                        <span class="help-icon" data-tooltip="Forces Mixture of Experts computation on CPU instead of GPU. Can help with VRAM constraints for MoE models like Mixtral."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="cpuMoe" class="form-control checkbox">
-                                                </div>
-                                            </div>
-
-                                            <div class="inline-checkboxes">
-                                                <div class="form-group">
-                                                    <label for="jinja">Jinja (--jinja):
-                                                        <span class="help-icon" data-tooltip="Enables Jinja template processing for chat formats. Required for some newer models with custom chat templates."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="jinja" class="form-control checkbox">
-                                                </div>
-                                            </div>
-
-                                            <h4 class="config-subsection-title">Model Memory</h4>
-                                            <div class="form-group">
-                                                <label for="keepModels">Keep Models (--keep):
-                                                    <span class="help-icon" data-tooltip="Number of models to keep loaded in memory. 0 = unload after use, 1+ = keep loaded for faster switching. Uses more VRAM but improves performance."></span>
-                                                </label>
-                                                <input type="number" id="keepModels" class="form-control" min="0" value="0">
-                                            </div>
-                                            <div class="inline-checkboxes">
-                                                <div class="form-group">
-                                                    <label for="memoryTest">Memory Test (--memory-test):
-                                                        <span class="help-icon" data-tooltip="Performs memory bandwidth test on startup. Useful for debugging memory-related performance issues but adds startup time."></span>
-                                                    </label>
-                                                    <input type="checkbox" id="memoryTest" class="form-control checkbox">
-                                                </div>
-                                            </div>
-
-                                            <h4 class="config-subsection-title">Extended Context &amp; Vision</h4>
-                                            <div class="info-banner">
-                                                <strong>YaRN Rope Scaling:</strong> Extends context beyond the model's native window (e.g. 4x scale + yarn-orig-ctx 32768 gives ~128K on Qwen 3.5). Leave blank to use model defaults.
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="ropeScaling">RoPE Scaling (--rope-scaling):
-                                                    <span class="help-icon" data-tooltip="RoPE context scaling method. 'yarn' enables YaRN scaling for extended context windows beyond the model's native limit. Required for Qwen 3.5 extended context."></span>
-                                                </label>
-                                                <select id="ropeScaling" class="form-control">
-                                                    <option value="">None (model default)</option>
-                                                    <option value="linear">linear</option>
-                                                    <option value="yarn">yarn (YaRN - recommended for long context)</option>
-                                                    <option value="none">none (disable scaling)</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="ropeScale">RoPE Scale (--rope-scale):
-                                                    <span class="help-icon" data-tooltip="Context extension factor. 4 = 4x the native context window. E.g. set to 4 with yarn-orig-ctx 32768 for ~128K context on Qwen 3.5."></span>
-                                                </label>
-                                                <input type="number" id="ropeScale" class="form-control" min="1" step="0.5" placeholder="e.g. 4">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="yarnOrigCtx">YaRN Original Context (--yarn-orig-ctx):
-                                                    <span class="help-icon" data-tooltip="The original training context size of the model, used as the base for YaRN scaling. For Qwen 3.5: 32768."></span>
-                                                </label>
-                                                <input type="number" id="yarnOrigCtx" class="form-control" min="512" placeholder="e.g. 32768">
-                                            </div>
-
-                                            <div class="info-banner">
-                                                <strong>Gemma 4 Vision:</strong> Required for multimodal image inference. Both min/max tokens must be set to the same value (valid: 70, 140, 280, 560, 1120). The ubatch size must be at least as large.
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="imageMinTokens">Image Min Tokens (--image-min-tokens):
-                                                    <span class="help-icon" data-tooltip="Minimum image token budget for vision models. Must match image-max-tokens. Valid values: 70, 140, 280, 560, 1120. Required for Gemma 4 vision inference."></span>
-                                                </label>
-                                                <input type="number" id="imageMinTokens" class="form-control" min="70" placeholder="e.g. 1120">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="imageMaxTokens">Image Max Tokens (--image-max-tokens):
-                                                    <span class="help-icon" data-tooltip="Maximum image token budget for vision models. Must match image-min-tokens. Valid values: 70, 140, 280, 560, 1120. Required for Gemma 4 vision inference."></span>
-                                                </label>
-                                                <input type="number" id="imageMaxTokens" class="form-control" min="70" placeholder="e.g. 1120">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                            </div>
-
-                            <div class="config-section" id="section-updates">
-                                <h3 class="config-section-title">llama.cpp Updates</h3>
-                                <div class="updater-version-section">
-                                    <div class="version-card">
-                                        <div class="version-row">
-                                            <div class="version-item">
-                                                <span class="version-label">Current Version:</span>
-                                                <span id="updaterCurrentVersion" class="version-value">Checking...</span>
-                                            </div>
-                                            <div class="version-item">
-                                                <span class="version-label">Latest Version:</span>
-                                                <span id="updaterLatestVersion" class="version-value">-</span>
-                                            </div>
-                                        </div>
-                                        <div class="version-row">
-                                            <div class="version-item">
-                                                <span class="version-label">Platform:</span>
-                                                <span id="updaterPlatform" class="version-value platform-badge">-</span>
-                                            </div>
-                                            <div class="version-item">
-                                                <span class="version-label">Status:</span>
-                                                <span id="updaterStatus" class="version-value status-badge">-</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div id="updateAvailableBanner" class="update-available-banner" style="display: none;">
-                                    <div class="banner-content">
-                                        <span class="banner-icon" data-icon="gift"></span>
-                                        <div class="banner-text">
-                                            <strong>Update Available!</strong>
-                                            <span id="updateBannerInfo">A new version is available</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="updater-actions">
-                                    <button id="checkUpdatesBtn" class="btn btn-primary">
-                                        <span class="btn-icon" data-icon="search"></span> Check for Updates
-                                    </button>
-                                    <button id="downloadUpdateBtn" class="btn btn-success" disabled>
-                                        <span class="btn-icon" data-icon="download"></span> Download Update
-                                    </button>
-                                    <button id="applyUpdateBtn" class="btn btn-warning" disabled>
-                                        <span class="btn-icon" data-icon="package"></span> Apply Update
-                                    </button>
-                                </div>
-                                <div id="downloadProgressSection" class="download-progress-section" style="display: none;">
-                                    <div class="progress-header">
-                                        <span class="progress-title">Downloading update...</span>
-                                        <span id="downloadProgressPercent" class="progress-percent">0%</span>
-                                    </div>
-                                    <div class="progress-bar-container">
-                                        <div id="downloadProgressBar" class="progress-bar" style="width: 0%"></div>
-                                    </div>
-                                    <div class="progress-details">
-                                        <span id="downloadProgressBytes">0 MB / 0 MB</span>
-                                    </div>
-                                </div>
-                                <div id="updaterMessages" class="updater-messages"></div>
-                                <div class="updater-config-section">
-                                    <h4>Configuration</h4>
-                                    <div class="form-group">
-                                        <label for="updaterInstallPath">llama.cpp Installation Path:
-                                            <span class="help-icon" data-tooltip="Path to your llama.cpp installation directory (where llama-server.exe is located). Auto-detected from server path if not set."></span>
-                                        </label>
-                                        <div class="input-with-button">
-                                            <input type="text" id="updaterInstallPath" class="form-control" placeholder="Auto-detected from server path">
-                                            <button id="detectInstallPathBtn" class="btn btn-secondary btn-sm">Detect</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="updater-info">
-                                    <p><strong>Note:</strong> Updates will create a backup of your current installation before applying changes. The llama-server must be stopped before applying updates.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                </div>
-
-                </div>
-                
-                <!-- Model Output Section -->
-                <div class="model-status-output-section">
-                    <div class="model-status-container">
-                        <h3>Model Status</h3>
-                        
-                        <!-- Action Buttons -->
-                        <div class="action-buttons-container">
-                            <div class="action-buttons">
-                                <button id="launchBtn" class="btn btn-primary">Launch</button>
-                                <button id="stopBtn" class="btn btn-danger" disabled>Stop</button>
-                                <button id="openServerBtn" class="btn btn-secondary" disabled title="Open llama.cpp server in browser">
-                                    <span data-icon="globe"></span> Open Server
-                                </button>
-                            </div>
-                            
-                            <!-- Model Status Inline -->
+                        <div class="instance-header-right">
+                            <button id="launchBtn" class="btn btn-primary instance-launch-btn">Launch</button>
+                            <button id="stopBtn" class="btn btn-danger instance-stop-btn" disabled>Stop</button>
+                            <button id="openServerBtn" class="btn btn-secondary instance-open-server-btn" disabled title="Open server in browser">
+                                <span data-icon="globe"></span> Open Server
+                            </button>
                             <div class="model-status-inline">
                                 <div id="modelStatusMessage" class="status-message">Not running</div>
                                 <div id="tokenSpeed" class="token-speed" style="display: none;">
@@ -753,82 +76,724 @@
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- Context Window Visualization -->
-                        <div class="context-visualization" id="contextVisualization" style="display: none;">
-                            <div class="context-header">
-                                <span class="context-title">Context Usage</span>
-                                <span class="context-info" id="contextInfo">0 / 0 tokens (0%)</span>
-                            </div>
-                            <div class="context-bar-container">
-                                <div class="context-bar">
-                                    <div class="context-used" id="contextUsed" style="width: 0%"></div>
-                                    <div class="context-available"></div>
-                                </div>
-                            </div>
-                            <div class="context-details">
-                                <div class="context-warning" id="contextWarning" style="display: none;">
-                                    Context usage is high - consider using a larger context size or clearing conversation history
-                                </div>
-                                <div class="turns-estimate" id="turnsEstimate" style="display: none;">
-                                    Estimated remaining turns: <span class="turns-count">--</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Demo Context Button (temporary for testing) -->
-                        <div style="margin-bottom: 10px;">
-                                <button id="testContextBtn" class="btn btn-secondary" style="font-size: 12px; padding: 4px 8px;">
-                                    <span data-icon="flask"></span> Test Context Visualization
-                            </button>
-                        </div>
-                        
-                        <div id="modelProcessInfo" class="process-info">No process information</div>
                     </div>
-                    
-                    <div class="model-output-container">
-                        <h3>Model Output</h3>
-                        <div id="modelOutput" class="output-content">No output yet...</div>
-                    </div>
-                </div>
-            </div>
+                    <div class="instance-body">
+                        <div class="outline-sidebar">
+                            <nav class="outline-nav">
+                                <a class="outline-item active" data-section="section-model">Model</a>
+                                <a class="outline-item" data-section="section-performance">Performance</a>
+                                <a class="outline-item" data-section="section-memory">Memory</a>
+                                <a class="outline-item" data-section="section-concurrency">Concurrency</a>
+                                <a class="outline-item" data-section="section-networking">Networking</a>
+                                <a class="outline-item" data-section="section-speculative">Speculative</a>
+                                <a class="outline-item" data-section="section-kv-transfer">KV Transfer</a>
+                                <a class="outline-item" data-section="section-advanced">Advanced</a>
+                            </nav>
+                        </div>
+                        <div class="instance-main">
+                            <div class="config-form-area">
+                                <div id="configAccordion" class="accordion">
 
-            <!-- System Resources Panel (Right) -->
-            <div class="system-panel" style="position: absolute !important; right: 10px !important; top: 0 !important; bottom: 0 !important; width: 310px !important; z-index: 10 !important;">
-                <div class="system-panel-header">
-                    <h2><span data-icon="barChart"></span> System Resources</h2>
-                </div>
-                
-                <div class="system-metrics-container">
-                    <!-- CPU Metrics with Temperature -->
-                    <div class="cpu-metrics-section">
-                        <div class="metric-graph">
-                            <div class="graph-title">CPU Usage <span id="cpuTempIndicator" class="temp-indicator"></span></div>
-                            <canvas id="cpuGraph" class="graph-canvas"></canvas>
-                            <div class="metric-value" id="cpuValue">0%</div>
+                                    <div class="accordion-group" data-group="model" data-runtime="both" id="section-model">
+                                        <button class="accordion-header" aria-expanded="true" type="button">
+                                            <span class="accordion-header-title">Model</span>
+                                            <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                        <div class="accordion-content" aria-hidden="false">
+                                            <div class="accordion-content-inner">
+                                                <div class="form-group">
+                                                    <label for="serverPath">LLaMA Server Path:
+                                                        <span class="help-icon" data-tooltip="Path to your llama-server.exe or llama-server executable. This is the main llama.cpp server binary that will run your models."></span>
+                                                    </label>
+                                                    <input type="text" id="serverPath" class="form-control" placeholder="Enter path to llama-server.exe">
+                                                </div>
+
+                                                <h4 class="config-subsection-title">Models Directory</h4>
+                                                <div class="form-group">
+                                                    <label for="modelsSource">Source:
+                                                        <span class="help-icon" data-tooltip="Select where to find your GGUF models. Auto-detect options will read the configured path from each tool. Use Custom to specify your own folder."></span>
+                                                    </label>
+                                                    <select id="modelsSource" class="form-control">
+                                                        <option value="lmstudio">LM Studio (auto-detect)</option>
+                                                        <option value="ollama">Ollama (auto-detect)</option>
+                                                        <option value="gpt4all">GPT4All (auto-detect)</option>
+                                                        <option value="jan">Jan.ai (auto-detect)</option>
+                                                        <option value="custom">Custom Path</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group" id="customPathGroup" style="display: none;">
+                                                    <label for="customModelsPath">Custom Path:
+                                                        <span class="help-icon" data-tooltip="Enter the full path to your models directory containing GGUF files."></span>
+                                                    </label>
+                                                    <input type="text" id="customModelsPath" class="form-control" placeholder="Enter path to models folder">
+                                                </div>
+                                                <div class="form-group">
+                                                    <div class="models-path-info">
+                                                        <span class="path-label">Active path:</span>
+                                                        <span id="activeModelsPath" class="path-value">Detecting...</span>
+                                                    </div>
+                                                    <button type="button" id="refreshModelsBtn" class="btn btn-secondary btn-sm">Refresh Models</button>
+                                                </div>
+
+                                                <h4 class="config-subsection-title">Model Selection</h4>
+                                                <div class="form-group">
+                                                    <label for="modelPath">Model (-m):
+                                                        <span class="help-icon" data-tooltip="Select the GGUF model file to load. Models are automatically detected from the models directory above."></span>
+                                                    </label>
+                                                    <select id="modelPath" class="form-control">
+                                                        <option value="">-- Select a Model --</option>
+                                                    </select>
+                                                </div>
+
+                                                <h4 class="config-subsection-title">GPU Configuration</h4>
+                                                <div class="form-group">
+                                                    <label for="ngl">GPU Layers (-ngl):
+                                                        <span class="help-icon" data-tooltip="Number of model layers to offload to GPU. Use 99 to offload all layers. For large models (>50GB) on 24GB cards, try 30-50 layers to avoid VRAM overflow."></span>
+                                                    </label>
+                                                    <input type="number" id="ngl" class="form-control" min="0" value="99">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="contextSize">Context Size (-c):
+                                                        <span class="help-icon" data-tooltip="Maximum tokens in conversation memory. 32K for most uses, 128K for large documents. Higher values use more VRAM."></span>
+                                                    </label>
+                                                    <input type="number" id="contextSize" class="form-control" min="1" value="16384">
+                                                </div>
+
+                                                <h4 class="config-subsection-title">Preset Configurations</h4>
+                                                <div class="preset-buttons">
+                                                    <button type="button" id="presetHighPerf" class="btn btn-outline-primary">High Performance Single GPU</button>
+                                                    <button type="button" id="presetBalancedDual" class="btn btn-outline-primary">Balanced Dual GPU</button>
+                                                    <button type="button" id="presetLargeModel" class="btn btn-outline-primary">Large Model Dual GPU</button>
+                                                    <button type="button" id="presetCpuOffload" class="btn btn-outline-primary">CPU Offload Hybrid</button>
+                                                    <button type="button" id="presetHighRamHybrid" class="btn btn-outline-success">High RAM Hybrid (128GB+)</button>
+                                                    <button type="button" id="presetQwen35" class="btn btn-outline-info">Qwen 3.5</button>
+                                                    <button type="button" id="presetGemma4" class="btn btn-outline-info">Gemma 4</button>
+                                                    <button type="button" id="presetAgenticCoding" class="btn btn-outline-warning">Agentic Coding</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="accordion-group" data-group="performance" data-runtime="both" id="section-performance">
+                                        <button class="accordion-header" aria-expanded="false" type="button">
+                                            <span class="accordion-header-title">Performance</span>
+                                            <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                        <div class="accordion-content" aria-hidden="true">
+                                            <div class="accordion-content-inner">
+                                                <div class="form-group">
+                                                    <label for="threads">Threads (-t):
+                                                        <span class="help-icon" data-tooltip="Number of CPU threads for processing. Usually set to your CPU core count. Too many threads can reduce performance."></span>
+                                                    </label>
+                                                    <input type="number" id="threads" class="form-control" min="1" value="12">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="batchSize">Batch Size (--batch-size, -b):
+                                                        <span class="help-icon" data-tooltip="Number of tokens processed simultaneously. Higher values (2048+) improve throughput but use more VRAM. Reduce if you get OOM errors."></span>
+                                                    </label>
+                                                    <input type="number" id="batchSize" class="form-control" min="1" value="2048">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="ubatchSize">Micro Batch Size (--ubatch-size, -ub):
+                                                        <span class="help-icon" data-tooltip="Size of batches processed internally. Usually 1/4 to 1/2 of batch size. Lower values use less VRAM but may be slower."></span>
+                                                    </label>
+                                                    <input type="number" id="ubatchSize" class="form-control" min="1" value="512">
+                                                </div>
+                                                <div class="inline-checkboxes">
+                                                    <div class="form-group">
+                                                        <label for="contBatching">Continuous Batching (--cont-batching):
+                                                            <span class="help-icon" data-tooltip="Enables processing multiple requests simultaneously. Improves throughput for server workloads but uses more VRAM."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="contBatching" class="form-control checkbox">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="fastAttention">Fast Attention (--fa):
+                                                            <span class="help-icon" data-tooltip="FlashAttention optimization for faster inference. Can provide significant speedup on compatible hardware (modern GPUs)."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="fastAttention" class="form-control checkbox">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="noContextShift">No Context Shift (--no-context-shift):
+                                                            <span class="help-icon" data-tooltip="Disables automatic context rotation when context is full. Default: off (context rotates gracefully). Enable if you need strict context boundaries -- generation stops at the limit instead of silently dropping old tokens."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="noContextShift" class="form-control checkbox">
+                                                    </div>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="numa">NUMA Optimization (--numa):
+                                                        <span class="help-icon" data-tooltip="Memory optimization for multi-socket systems. 'Distribute' spreads across NUMA nodes, 'Isolate' keeps to one node. Leave None for single-socket systems."></span>
+                                                    </label>
+                                                    <select id="numa" class="form-control">
+                                                        <option value="">None</option>
+                                                        <option value="distribute">Distribute</option>
+                                                        <option value="isolate">Isolate</option>
+                                                        <option value="numactl">Numactl</option>
+                                                    </select>
+                                                </div>
+
+                                                <h4 class="config-subsection-title">Multi-GPU Settings</h4>
+                                                <div class="warning-banner" id="multiGpuWarning" style="display: none;">
+                                                    <strong>Performance Note:</strong> Tensor splitting in llama.cpp may reduce performance. Consider vLLM or ExLlamaV2 for optimal multi-GPU utilization.
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="tensorSplit">Tensor Split (--tensor-split):
+                                                        <span class="help-icon" data-tooltip="Comma-separated ratios for GPU memory distribution. Example: 0.6,0.4 gives 60% to GPU 0, 40% to GPU 1. For dual 3090s, try 0.5,0.5 first."></span>
+                                                    </label>
+                                                    <input type="text" id="tensorSplit" class="form-control" placeholder="e.g., 0.5,0.5 for equal split">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="mainGpu">Main GPU (--main-gpu):
+                                                        <span class="help-icon" data-tooltip="Primary GPU for processing when using multiple GPUs. Usually GPU 0. This GPU handles coordination and the first layers."></span>
+                                                    </label>
+                                                    <select id="mainGpu" class="form-control">
+                                                        <option value="0">GPU 0</option>
+                                                        <option value="1">GPU 1</option>
+                                                        <option value="2">GPU 2</option>
+                                                        <option value="3">GPU 3</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="splitMode">Split Mode (--split-mode):
+                                                        <span class="help-icon" data-tooltip="How to split model across GPUs. 'Layer' works best for most models. 'Row' for very large models that don't fit in layers."></span>
+                                                    </label>
+                                                    <select id="splitMode" class="form-control">
+                                                        <option value="none">None (default)</option>
+                                                        <option value="layer">Layer</option>
+                                                        <option value="row">Row</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="accordion-group" data-group="memory" data-runtime="both" id="section-memory">
+                                        <button class="accordion-header" aria-expanded="false" type="button">
+                                            <span class="accordion-header-title">Memory</span>
+                                            <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                        <div class="accordion-content" aria-hidden="true">
+                                            <div class="accordion-content-inner">
+                                                <h4 class="config-subsection-title">Memory Management</h4>
+                                                <div class="inline-checkboxes">
+                                                    <div class="form-group">
+                                                        <label for="mlock">Memory Lock (--mlock):
+                                                            <span class="help-icon" data-tooltip="Prevents model from being swapped to disk. Essential for hybrid GPU/CPU loading with fast DDR5 RAM (64GB+). Keeps model layers consistently in RAM for optimal performance. Recommended for high-RAM systems running large models."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="mlock" class="form-control checkbox">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="noMmap">No Memory Mapping (--no-mmap):
+                                                            <span class="help-icon" data-tooltip="Disables memory mapping for model loading. Can help with some systems but uses more RAM. Try if you get loading errors."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="noMmap" class="form-control checkbox">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="swaFull">SWA Full (--swa-full):
+                                                            <span class="help-icon" data-tooltip="Sliding Window Attention optimization. Can improve performance for models with sliding window attention support."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="swaFull" class="form-control checkbox">
+                                                    </div>
+                                                </div>
+
+                                                <h4 class="config-subsection-title">Context Token Parameters</h4>
+                                                <div class="inline-checkboxes">
+                                                    <div class="form-group">
+                                                        <label for="ctkEnable">Enable -ctk/-ctv:
+                                                            <span class="help-icon" data-tooltip="Enables custom quantization for context token key/value caches. Advanced feature for fine-tuning memory usage vs quality."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="ctkEnable" class="form-control checkbox">
+                                                    </div>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="contextTokenKey">Context Token Key (-ctk):
+                                                        <span class="help-icon" data-tooltip="Quantization type for context token keys. Only active when CTK/CTV is enabled. f16 provides good balance of quality and performance."></span>
+                                                    </label>
+                                                    <select id="contextTokenKey" class="form-control" disabled>
+                                                        <option value="f32">f32</option>
+                                                        <option value="f16" selected>f16</option>
+                                                        <option value="bf16">bf16</option>
+                                                        <option value="q8_0">q8_0</option>
+                                                        <option value="q4_0">q4_0</option>
+                                                        <option value="q4_1">q4_1</option>
+                                                        <option value="iq4_nl">iq4_nl</option>
+                                                        <option value="q5_0">q5_0</option>
+                                                        <option value="q5_1">q5_1</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="contextTokenValue">Context Token Value (-ctv):
+                                                        <span class="help-icon" data-tooltip="Quantization type for context token values. Only active when CTK/CTV is enabled. Should usually match the CTK setting."></span>
+                                                    </label>
+                                                    <select id="contextTokenValue" class="form-control" disabled>
+                                                        <option value="f32">f32</option>
+                                                        <option value="f16" selected>f16</option>
+                                                        <option value="bf16">bf16</option>
+                                                        <option value="q8_0">q8_0</option>
+                                                        <option value="q4_0">q4_0</option>
+                                                        <option value="q4_1">q4_1</option>
+                                                        <option value="iq4_nl">iq4_nl</option>
+                                                        <option value="q5_0">q5_0</option>
+                                                        <option value="q5_1">q5_1</option>
+                                                    </select>
+                                                </div>
+
+                                                <h4 class="config-subsection-title">Cache Types</h4>
+                                                <div class="form-group">
+                                                    <label for="cacheTypeK">Cache Type K (--cache-type-k):
+                                                        <span class="help-icon" data-tooltip="Quantization type for KV cache keys. Affects memory usage vs quality. q4_0 saves significant VRAM with minimal quality loss."></span>
+                                                    </label>
+                                                    <select id="cacheTypeK" class="form-control">
+                                                        <option value="f32">f32</option>
+                                                        <option value="f16">f16</option>
+                                                        <option value="bf16">bf16</option>
+                                                        <option value="q8_0">q8_0</option>
+                                                        <option value="q4_0" selected>q4_0</option>
+                                                        <option value="q4_1">q4_1</option>
+                                                        <option value="iq4_nl">iq4_nl</option>
+                                                        <option value="q5_0">q5_0</option>
+                                                        <option value="q5_1">q5_1</option>
+                                                        <option value="turbo3">turbo3 (TurboQuant 3-bit)</option>
+                                                        <option value="turbo4">turbo4 (TurboQuant 4-bit)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="cacheTypeV">Cache Type V (--cache-type-v):
+                                                        <span class="help-icon" data-tooltip="Quantization type for KV cache values. Should usually match Cache Type K setting. q4_0 provides good VRAM savings."></span>
+                                                    </label>
+                                                    <select id="cacheTypeV" class="form-control">
+                                                        <option value="f32">f32</option>
+                                                        <option value="f16">f16</option>
+                                                        <option value="bf16">bf16</option>
+                                                        <option value="q8_0">q8_0</option>
+                                                        <option value="q4_0" selected>q4_0</option>
+                                                        <option value="q4_1">q4_1</option>
+                                                        <option value="iq4_nl">iq4_nl</option>
+                                                        <option value="q5_0">q5_0</option>
+                                                        <option value="q5_1">q5_1</option>
+                                                        <option value="turbo3">turbo3 (TurboQuant 3-bit)</option>
+                                                        <option value="turbo4">turbo4 (TurboQuant 4-bit)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="inline-checkboxes">
+                                                    <div class="form-group">
+                                                        <label for="kvOffload">KV Cache in VRAM (-nkvo):
+                                                            <span class="help-icon" data-tooltip="Keep the entire KV cache in GPU VRAM instead of allowing spillover to system RAM. Faster inference but uses more VRAM. Recommended for low-latency agentic workloads."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="kvOffload" class="form-control checkbox">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="accordion-group" data-group="concurrency" data-runtime="both" id="section-concurrency">
+                                        <button class="accordion-header" aria-expanded="false" type="button">
+                                            <span class="accordion-header-title">Concurrency</span>
+                                            <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                        <div class="accordion-content" aria-hidden="true">
+                                            <div class="accordion-content-inner">
+                                                <div class="form-group">
+                                                    <label for="nPredict">Max Predict Tokens (--n-predict, -n):
+                                                        <span class="help-icon" data-tooltip="Maximum tokens to generate per request. -1 = unlimited. Agents typically use 2048-4096 to prevent runaway generation. Leave blank for server default (unlimited)."></span>
+                                                    </label>
+                                                    <input type="number" id="nPredict" class="form-control" min="-1" placeholder="unlimited (default)">
+                                                </div>
+                                                <h4 class="config-subsection-title">Agentic / Multi-Slot Settings</h4>
+                                                <div class="form-group">
+                                                    <label for="nParallel">Parallel Slots (--n-parallel, -np):
+                                                        <span class="help-icon" data-tooltip="Number of concurrent inference slots. Agents need 4-8 for parallel tool calling. Total context is divided across slots (e.g. 64K / 4 slots = 16K each). Requires Continuous Batching enabled."></span>
+                                                    </label>
+                                                    <input type="number" id="nParallel" class="form-control" min="1" placeholder="1 (default)">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="slotPromptSimilarity">Slot Prompt Similarity (-sps):
+                                                        <span class="help-icon" data-tooltip="Minimum prompt overlap (0-1) to reuse a slot's KV cache. Higher = more aggressive reuse. 0.5 default; 0.7-0.8 recommended for agents that send the same system prompt each turn."></span>
+                                                    </label>
+                                                    <input type="number" id="slotPromptSimilarity" class="form-control" min="0" max="1" step="0.05" placeholder="0.5 (default)">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="slotSavePath">Slot Save Path (--slot-save-path):
+                                                        <span class="help-icon" data-tooltip="Directory to save/restore slot KV cache between sessions. Enables persistent context across server restarts. Leave blank to disable."></span>
+                                                    </label>
+                                                    <input type="text" id="slotSavePath" class="form-control" placeholder="e.g. ./llm_cache">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="accordion-group" data-group="speculative" data-runtime="both" id="section-speculative">
+                                        <button class="accordion-header" aria-expanded="false" type="button">
+                                            <span class="accordion-header-title">Speculative</span>
+                                            <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                        <div class="accordion-content" aria-hidden="true">
+                                            <div class="accordion-content-inner">
+                                                <div class="info-banner" id="draftModelInfo">
+                                                    <strong>Performance Boost:</strong> Use a smaller draft model to predict tokens, validated by the main model. Can provide 2-3x speed improvement for compatible model pairs.
+                                                </div>
+                                                <div class="inline-checkboxes">
+                                                    <div class="form-group">
+                                                        <label for="draftModelEnable">Enable Speculative Decoding:
+                                                            <span class="help-icon" data-tooltip="Uses a smaller draft model to predict tokens, validated by main model. Can provide 2-3x speed improvement with compatible model pairs."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="draftModelEnable" class="form-control checkbox">
+                                                    </div>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="draftModelPath">Draft Model (--model-draft):</label>
+                                                    <select id="draftModelPath" class="form-control" disabled>
+                                                        <option value="">-- Select a Draft Model --</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="draftGpuLayers">Draft GPU Layers (--n-gpu-layers-draft):
+                                                        <span class="help-icon" data-tooltip="Number of layers to run on GPU for draft model. Usually all layers for best performance. Should be less than or equal to main model GPU layers."></span>
+                                                    </label>
+                                                    <input type="number" id="draftGpuLayers" class="form-control" min="0" value="40" disabled>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="draftContextSize">Draft Context Size (--ctx-size-draft):
+                                                        <span class="help-icon" data-tooltip="Context size for draft model. Should usually match main model context size for best compatibility."></span>
+                                                    </label>
+                                                    <input type="number" id="draftContextSize" class="form-control" min="512" value="8192" disabled>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="draftMaxTokens">Draft Max Tokens (--draft):
+                                                        <span class="help-icon" data-tooltip="Maximum number of tokens draft model predicts ahead. Higher values improve speed but use more VRAM. 16-32 typical range."></span>
+                                                    </label>
+                                                    <input type="number" id="draftMaxTokens" class="form-control" min="1" value="16" disabled>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="draftMinTokens">Draft Min Tokens (--draft-min):
+                                                        <span class="help-icon" data-tooltip="Minimum number of draft tokens to keep. Usually 1. Lower values can improve quality at the cost of speed."></span>
+                                                    </label>
+                                                    <input type="number" id="draftMinTokens" class="form-control" min="1" value="1" disabled>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="draftPMin">Draft P Min (--draft-p-min):
+                                                        <span class="help-icon" data-tooltip="Minimum probability threshold for draft token acceptance. 0.0-1.0 range. Higher values = more conservative, lower = more aggressive."></span>
+                                                    </label>
+                                                    <input type="number" id="draftPMin" class="form-control" step="0.01" min="0" max="1" value="0.05" disabled>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="accordion-group" data-group="kv-transfer" data-runtime="vllm" id="section-kv-transfer">
+                                        <button class="accordion-header" aria-expanded="false" type="button">
+                                            <span class="accordion-header-title">KV Transfer</span>
+                                            <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                        <div class="accordion-content" aria-hidden="true">
+                                            <div class="accordion-content-inner">
+                                                <div class="info-banner">
+                                                    <strong>KV Transfer:</strong> Configure KV cache offloading and transfer between instances. These settings are only available for vLLM instances.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="accordion-group" data-group="networking" data-runtime="both" id="section-networking">
+                                        <button class="accordion-header" aria-expanded="false" type="button">
+                                            <span class="accordion-header-title">Networking</span>
+                                            <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                        <div class="accordion-content" aria-hidden="true">
+                                            <div class="accordion-content-inner">
+                                                <div class="form-group">
+                                                    <label for="serverHost">Host (--host):
+                                                        <span class="help-icon" data-tooltip="IP address to bind server to. 127.0.0.1 for local only, 0.0.0.0 to allow external connections. Be careful with external access!"></span>
+                                                    </label>
+                                                    <input type="text" id="serverHost" class="form-control" value="127.0.0.1" placeholder="IP address to bind to">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="serverPort">Port (--port):
+                                                        <span class="help-icon" data-tooltip="Network port for the API server. Default 8080. Make sure this port isn't already in use by another application."></span>
+                                                    </label>
+                                                    <input type="number" id="serverPort" class="form-control" min="1" max="65535" value="8080" placeholder="Port number">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="apiKey">API Key (--api-key):
+                                                        <span class="help-icon" data-tooltip="Optional authentication key for API requests. Leave empty for no authentication. Required for production deployments."></span>
+                                                    </label>
+                                                    <input type="password" id="apiKey" class="form-control" placeholder="Optional authentication key">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="readTimeout">Read Timeout (--timeout-read):
+                                                        <span class="help-icon" data-tooltip="Server read timeout in seconds. How long server waits for client requests. Default is 600 seconds (10 minutes)."></span>
+                                                    </label>
+                                                    <input type="number" id="readTimeout" class="form-control" min="1" value="600" placeholder="Read timeout in seconds">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="writeTimeout">Write Timeout (--timeout-write):
+                                                        <span class="help-icon" data-tooltip="Server write timeout in seconds. How long server waits to send responses. Default is 600 seconds (10 minutes)."></span>
+                                                    </label>
+                                                    <input type="number" id="writeTimeout" class="form-control" min="1" value="600" placeholder="Write timeout in seconds">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="accordion-group" data-group="advanced" data-runtime="both" id="section-advanced">
+                                        <button class="accordion-header" aria-expanded="false" type="button">
+                                            <span class="accordion-header-title">Advanced</span>
+                                            <svg class="accordion-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                        <div class="accordion-content" aria-hidden="true">
+                                            <div class="accordion-content-inner">
+                                                <h4 class="config-subsection-title">Sampling Parameters</h4>
+                                                <div class="form-group">
+                                                    <label for="temp">Temperature (--temp):
+                                                        <span class="help-icon" data-tooltip="Controls randomness in output. 0.1 = very focused, 0.7 = balanced, 1.2+ = very creative. Most models work best with 0.6-0.8."></span>
+                                                    </label>
+                                                    <input type="number" id="temp" class="form-control" step="0.01" min="0" value="0.7">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="topK">Top-K (--top-k):
+                                                        <span class="help-icon" data-tooltip="Limits vocabulary to top K most probable tokens. 20-40 is typical. Higher values = more variety, lower = more focused."></span>
+                                                    </label>
+                                                    <input type="number" id="topK" class="form-control" min="0" value="20">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="topP">Top-P (--top-p):
+                                                        <span class="help-icon" data-tooltip="Cumulative probability threshold. 0.9-0.95 typical. Alternative to Top-K. Set to 0.00 to disable nucleus sampling."></span>
+                                                    </label>
+                                                    <input type="number" id="topP" class="form-control" step="0.01" min="0" max="1" value="0.00">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="repeatPenalty">Repeat Penalty (--repeat-penalty):
+                                                        <span class="help-icon" data-tooltip="Penalizes repeated words/phrases. 1.0 = no penalty, 1.05-1.15 typical. Higher values reduce repetition but may affect coherence."></span>
+                                                    </label>
+                                                    <input type="number" id="repeatPenalty" class="form-control" step="0.01" min="0" value="1.05">
+                                                </div>
+
+                                                <h4 class="config-subsection-title">Mixture of Experts (MoE)</h4>
+                                                <div class="form-group">
+                                                    <label for="nCpuMoe">CPU MoE Layers (--n-cpu-moe):
+                                                        <span class="help-icon" data-tooltip="Number of Mixture of Experts layers to run on CPU. For MoE models like Mixtral. Reduces VRAM usage at the cost of speed."></span>
+                                                    </label>
+                                                    <input type="number" id="nCpuMoe" class="form-control" min="0" value="8">
+                                                </div>
+                                                <div class="inline-checkboxes">
+                                                    <div class="form-group">
+                                                        <label for="cpuMoe">CPU MoE (--cpu-moe):
+                                                            <span class="help-icon" data-tooltip="Forces Mixture of Experts computation on CPU instead of GPU. Can help with VRAM constraints for MoE models like Mixtral."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="cpuMoe" class="form-control checkbox">
+                                                    </div>
+                                                </div>
+
+                                                <div class="inline-checkboxes">
+                                                    <div class="form-group">
+                                                        <label for="jinja">Jinja (--jinja):
+                                                            <span class="help-icon" data-tooltip="Enables Jinja template processing for chat formats. Required for some newer models with custom chat templates."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="jinja" class="form-control checkbox">
+                                                    </div>
+                                                </div>
+
+                                                <h4 class="config-subsection-title">Model Memory</h4>
+                                                <div class="form-group">
+                                                    <label for="keepModels">Keep Models (--keep):
+                                                        <span class="help-icon" data-tooltip="Number of models to keep loaded in memory. 0 = unload after use, 1+ = keep loaded for faster switching. Uses more VRAM but improves performance."></span>
+                                                    </label>
+                                                    <input type="number" id="keepModels" class="form-control" min="0" value="0">
+                                                </div>
+                                                <div class="inline-checkboxes">
+                                                    <div class="form-group">
+                                                        <label for="memoryTest">Memory Test (--memory-test):
+                                                            <span class="help-icon" data-tooltip="Performs memory bandwidth test on startup. Useful for debugging memory-related performance issues but adds startup time."></span>
+                                                        </label>
+                                                        <input type="checkbox" id="memoryTest" class="form-control checkbox">
+                                                    </div>
+                                                </div>
+
+                                                <h4 class="config-subsection-title">Extended Context &amp; Vision</h4>
+                                                <div class="info-banner">
+                                                    <strong>YaRN Rope Scaling:</strong> Extends context beyond the model's native window (e.g. 4x scale + yarn-orig-ctx 32768 gives ~128K on Qwen 3.5). Leave blank to use model defaults.
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="ropeScaling">RoPE Scaling (--rope-scaling):
+                                                        <span class="help-icon" data-tooltip="RoPE context scaling method. 'yarn' enables YaRN scaling for extended context windows beyond the model's native limit. Required for Qwen 3.5 extended context."></span>
+                                                    </label>
+                                                    <select id="ropeScaling" class="form-control">
+                                                        <option value="">None (model default)</option>
+                                                        <option value="linear">linear</option>
+                                                        <option value="yarn">yarn (YaRN - recommended for long context)</option>
+                                                        <option value="none">none (disable scaling)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="ropeScale">RoPE Scale (--rope-scale):
+                                                        <span class="help-icon" data-tooltip="Context extension factor. 4 = 4x the native context window. E.g. set to 4 with yarn-orig-ctx 32768 for ~128K context on Qwen 3.5."></span>
+                                                    </label>
+                                                    <input type="number" id="ropeScale" class="form-control" min="1" step="0.5" placeholder="e.g. 4">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="yarnOrigCtx">YaRN Original Context (--yarn-orig-ctx):
+                                                        <span class="help-icon" data-tooltip="The original training context size of the model, used as the base for YaRN scaling. For Qwen 3.5: 32768."></span>
+                                                    </label>
+                                                    <input type="number" id="yarnOrigCtx" class="form-control" min="512" placeholder="e.g. 32768">
+                                                </div>
+
+                                                <div class="info-banner">
+                                                    <strong>Gemma 4 Vision:</strong> Required for multimodal image inference. Both min/max tokens must be set to the same value (valid: 70, 140, 280, 560, 1120). The ubatch size must be at least as large.
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="imageMinTokens">Image Min Tokens (--image-min-tokens):
+                                                        <span class="help-icon" data-tooltip="Minimum image token budget for vision models. Must match image-max-tokens. Valid values: 70, 140, 280, 560, 1120. Required for Gemma 4 vision inference."></span>
+                                                    </label>
+                                                    <input type="number" id="imageMinTokens" class="form-control" min="70" placeholder="e.g. 1120">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="imageMaxTokens">Image Max Tokens (--image-max-tokens):
+                                                        <span class="help-icon" data-tooltip="Maximum image token budget for vision models. Must match image-min-tokens. Valid values: 70, 140, 280, 560, 1120. Required for Gemma 4 vision inference."></span>
+                                                    </label>
+                                                    <input type="number" id="imageMaxTokens" class="form-control" min="70" placeholder="e.g. 1120">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                                <div class="config-section" id="section-updates">
+                                    <h3 class="config-section-title">llama.cpp Updates</h3>
+                                    <div class="updater-version-section">
+                                        <div class="version-card">
+                                            <div class="version-row">
+                                                <div class="version-item">
+                                                    <span class="version-label">Current Version:</span>
+                                                    <span id="updaterCurrentVersion" class="version-value">Checking...</span>
+                                                </div>
+                                                <div class="version-item">
+                                                    <span class="version-label">Latest Version:</span>
+                                                    <span id="updaterLatestVersion" class="version-value">-</span>
+                                                </div>
+                                            </div>
+                                            <div class="version-row">
+                                                <div class="version-item">
+                                                    <span class="version-label">Platform:</span>
+                                                    <span id="updaterPlatform" class="version-value platform-badge">-</span>
+                                                </div>
+                                                <div class="version-item">
+                                                    <span class="version-label">Status:</span>
+                                                    <span id="updaterStatus" class="version-value status-badge">-</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="updateAvailableBanner" class="update-available-banner" style="display: none;">
+                                        <div class="banner-content">
+                                            <span class="banner-icon" data-icon="gift"></span>
+                                            <div class="banner-text">
+                                                <strong>Update Available!</strong>
+                                                <span id="updateBannerInfo">A new version is available</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="updater-actions">
+                                        <button id="checkUpdatesBtn" class="btn btn-primary">
+                                            <span class="btn-icon" data-icon="search"></span> Check for Updates
+                                        </button>
+                                        <button id="downloadUpdateBtn" class="btn btn-success" disabled>
+                                            <span class="btn-icon" data-icon="download"></span> Download Update
+                                        </button>
+                                        <button id="applyUpdateBtn" class="btn btn-warning" disabled>
+                                            <span class="btn-icon" data-icon="package"></span> Apply Update
+                                        </button>
+                                    </div>
+                                    <div id="downloadProgressSection" class="download-progress-section" style="display: none;">
+                                        <div class="progress-header">
+                                            <span class="progress-title">Downloading update...</span>
+                                            <span id="downloadProgressPercent" class="progress-percent">0%</span>
+                                        </div>
+                                        <div class="progress-bar-container">
+                                            <div id="downloadProgressBar" class="progress-bar" style="width: 0%"></div>
+                                        </div>
+                                        <div class="progress-details">
+                                            <span id="downloadProgressBytes">0 MB / 0 MB</span>
+                                        </div>
+                                    </div>
+                                    <div id="updaterMessages" class="updater-messages"></div>
+                                    <div class="updater-config-section">
+                                        <h4>Configuration</h4>
+                                        <div class="form-group">
+                                            <label for="updaterInstallPath">llama.cpp Installation Path:
+                                                <span class="help-icon" data-tooltip="Path to your llama.cpp installation directory (where llama-server.exe is located). Auto-detected from server path if not set."></span>
+                                            </label>
+                                            <div class="input-with-button">
+                                                <input type="text" id="updaterInstallPath" class="form-control" placeholder="Auto-detected from server path">
+                                                <button id="detectInstallPathBtn" class="btn btn-secondary btn-sm">Detect</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="updater-info">
+                                        <p><strong>Note:</strong> Updates will create a backup of your current installation before applying changes. The llama-server must be stopped before applying updates.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="metrics-panel-placeholder">
+                                <div class="metrics-panel-header">
+                                    <h3><span data-icon="barChart"></span> System Resources</h3>
+                                </div>
+                                <div class="system-metrics-container">
+                                    <div class="cpu-metrics-section">
+                                        <div class="metric-graph">
+                                            <div class="graph-title">CPU Usage <span id="cpuTempIndicator" class="temp-indicator"></span></div>
+                                            <canvas id="cpuGraph" class="graph-canvas"></canvas>
+                                            <div class="metric-value" id="cpuValue">0%</div>
+                                        </div>
+                                        <div id="cpuCoresBars" class="cpu-cores-container"></div>
+                                    </div>
+                                    <div class="metric-graph">
+                                        <div class="graph-title">RAM Usage</div>
+                                        <canvas id="ramGraph" class="graph-canvas"></canvas>
+                                        <div class="metric-value" id="ramValue">0%</div>
+                                    </div>
+                                    <div id="gpuMetricsContainer" class="gpu-metrics-container"></div>
+                                    <div class="metric-graph">
+                                        <div class="graph-title">Total VRAM</div>
+                                        <canvas id="vramGraph" class="graph-canvas"></canvas>
+                                        <div class="metric-value" id="vramValue">0%</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="log-stream-placeholder">
+                                <h3 class="panel-section-title">Process &amp; Logs</h3>
+                                <div class="context-visualization" id="contextVisualization" style="display: none;">
+                                    <div class="context-header">
+                                        <span class="context-title">Context Usage</span>
+                                        <span class="context-info" id="contextInfo">0 / 0 tokens (0%)</span>
+                                    </div>
+                                    <div class="context-bar-container">
+                                        <div class="context-bar">
+                                            <div class="context-used" id="contextUsed" style="width: 0%"></div>
+                                            <div class="context-available"></div>
+                                        </div>
+                                    </div>
+                                    <div class="context-details">
+                                        <div class="context-warning" id="contextWarning" style="display: none;">
+                                            Context usage is high - consider using a larger context size or clearing conversation history
+                                        </div>
+                                        <div class="turns-estimate" id="turnsEstimate" style="display: none;">
+                                            Estimated remaining turns: <span class="turns-count">--</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="testContextBtn" class="btn btn-secondary" style="font-size: 12px; padding: 4px 8px; margin-bottom: 10px;">
+                                    <span data-icon="flask"></span> Test Context Visualization
+                                </button>
+                                <div id="modelProcessInfo" class="process-info">No process information</div>
+                                <div class="model-output-container">
+                                    <h3>Model Output</h3>
+                                    <div id="modelOutput" class="output-content">No output yet...</div>
+                                </div>
+                            </div>
                         </div>
-                        <div id="cpuCoresBars" class="cpu-cores-container">
-                            <!-- Per-core usage bars will be dynamically generated here -->
-                        </div>
-                    </div>
-                    
-                    <!-- RAM Usage -->
-                    <div class="metric-graph">
-                        <div class="graph-title">RAM Usage</div>
-                        <canvas id="ramGraph" class="graph-canvas"></canvas>
-                        <div class="metric-value" id="ramValue">0%</div>
-                    </div>
-                    
-                    <!-- Enhanced GPU Metrics -->
-                    <div id="gpuMetricsContainer" class="gpu-metrics-container">
-                        <!-- Per-GPU cards will be dynamically generated here -->
-                    </div>
-                    
-                    <!-- Legacy VRAM for compatibility -->
-                    <div class="metric-graph">
-                        <div class="graph-title">Total VRAM</div>
-                        <canvas id="vramGraph" class="graph-canvas"></canvas>
-                        <div class="metric-value" id="vramValue">0%</div>
                     </div>
                 </div>
             </div>
